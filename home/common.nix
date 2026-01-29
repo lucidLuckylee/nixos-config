@@ -90,22 +90,17 @@ in {
 
   programs.git = {
     enable = true;
-
-    userName = "lucidLuckylee";
-    userEmail = "48297887+lucidLuckylee@users.noreply.github.com";
-
-    extraConfig = {
+    settings = {
+      user.name = "lucidLuckylee";
+      user.email = "48297887+lucidLuckylee@users.noreply.github.com";
       core.editor = "nvim";
       color.ui = true;
       init.defaultBranch = "main";
       pull.rebase = true;
       push.default = "current";
       merge.conflictStyle = "diff3";
-
-      credential = {
-        helper = "cache";
-        cachetimeout = 900;
-      };
+      credential.helper = "cache";
+      credential.cachetimeout = 900;
     };
   };
 
