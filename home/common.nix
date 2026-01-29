@@ -9,6 +9,9 @@ let
 in {
   home.stateVersion = "25.05";
 
+  # Symlink ~/Usb to USB mount location
+  home.file."Usb".source = config.lib.file.mkOutOfStoreSymlink "/run/media/lucy";
+
   home.packages = with pkgs; [
     htop
     bluez
