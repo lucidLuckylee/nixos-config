@@ -20,6 +20,7 @@
         inherit system;
         modules = [
           ./machines/nixos/configuration.nix
+          home-manager.nixosModules.home-manager
           { _module.args = { inherit nvim; }; }
         ];
       };
@@ -29,6 +30,7 @@
         inherit system;
         modules = [
           ./machines/desktop/configuration.nix
+          home-manager.nixosModules.home-manager
           { _module.args = { inherit nvim; }; }
         ];
       };
