@@ -43,6 +43,12 @@
     dockerCompat = true;
   };
 
+  # QEMU/KVM for quickemu (macOS VMs, etc.)
+  virtualisation.libvirtd.enable = true;
+  environment.systemPackages = with pkgs; [
+    quickemu
+  ];
+
   environment.etc."distrobox/distrobox.conf".text = ''
     container_additional_volumes="/nix/store:/nix/store:ro
     /etc/profiles/per-user:/etc/profiles/per-user:ro"
