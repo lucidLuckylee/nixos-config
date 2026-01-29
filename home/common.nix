@@ -148,6 +148,14 @@ in {
     ];
   };
 
+  # USB auto-mounting
+  services.udiskie = {
+    enable = true;
+    automount = true;
+    notify = true;
+    tray = "never";  # No tray icon in Sway bar
+  };
+
   # Sway configuration
   wayland.windowManager.sway = {
     enable = true;
