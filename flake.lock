@@ -77,14 +77,17 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1765202326,
-        "narHash": "sha256-uAwZdTWF171Er1h+fcgZXu/CDRw3em3Zy8L1JjP74i8=",
-        "path": "/home/lucy/Projects/leon",
-        "type": "path"
+        "lastModified": 1769651406,
+        "narHash": "sha256-FVDZepjhqRhzZ6D+XItlJDjjIzXx/N46shAm8S3NZhQ=",
+        "owner": "lucidLuckylee",
+        "repo": "leon",
+        "rev": "c3dbf9e2b55006a1c35b49ccaac0575054e7f8ad",
+        "type": "github"
       },
       "original": {
-        "path": "/home/lucy/Projects/leon",
-        "type": "path"
+        "owner": "lucidLuckylee",
+        "repo": "leon",
+        "type": "github"
       }
     },
     "root": {

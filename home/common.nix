@@ -210,13 +210,13 @@ in {
           value = "move container to workspace number ${toString i}; workspace number ${toString i}";
         }) [1 2 3 4 5 6 7 8 9] )
         // {
-          "${mod}+t" = "workspace ";
-          "${mod}+Shift+t" = "move container to workspace ; workspace ";
+          "${mod}+t" = "workspace ";
+          "${mod}+Shift+t" = "move container to workspace ; workspace ";
           "${mod}+Shift+o" = "floating toggle";
           "${mod}+o" = "focus mode_toggle";
 
-          "${mod}+space" = "workspace ";
-          "${mod}+Shift+space" = "move container to workspace ; workspace ";
+          "${mod}+space" = "workspace ";
+          "${mod}+Shift+space" = "move container to workspace ; workspace ";
           "${mod}+Shift+tab" = "move scratchpad";
           "${mod}+tab" = "scratchpad show";
 
