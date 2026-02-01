@@ -31,6 +31,8 @@ in {
     tmux
     swayidle
     gh
+    python3
+    blesh
   ];
 
   fonts.fontconfig.enable = true;
@@ -40,25 +42,17 @@ in {
   };
 
   # Programs
-  programs.zsh = {
+  programs.bash = {
     enable = true;
-
     shellAliases = {
       update = "sudo nixos-rebuild switch --flake /home/lucy/NixOS";
       cleanup = "sudo nix-collect-garbage -d; sudo nixos-rebuild boot --flake /home/lucy/NixOS";
     };
-
-    plugins = [
-      { name = "zsh-autosuggestions"; src = pkgs.zsh-autosuggestions; }
-      { name = "zsh-syntax-highlighting"; src = pkgs.zsh-syntax-highlighting; }
-    ];
-    autosuggestion.enable = true;
-    autosuggestion.highlight = "fg=magenta";
-    syntaxHighlighting.enable = true;
-
-    initContent = ''
-      # Bind to ctrl + space
-      bindkey '^ ' autosuggest-accept
+    bashrcExtra = ''
+      [[ $- == *i* ]] && source -- "$(blesh-share)"/ble.sh --attach=none
+      set -o vi
+      ble-bind -m auto_complete -f 'C-@' auto_complete/insert
+      [[ ! ''${BLE_VERSION-} ]] || ble-attach
     '';
   };
 
@@ -67,6 +61,7 @@ in {
     enable = true;
 
     settings = {
+      terminal.shell = "${pkgs.bash}/bin/bash";
       font = {
         normal = {
           family = "DejaVu Sans Mono";

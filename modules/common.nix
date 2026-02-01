@@ -35,7 +35,7 @@
     options = "caps:escape";
   };
 
-  programs.zsh.enable = true;
+  programs.bash.enable = true;
 
   # Podman container support
   virtualisation.podman = {
@@ -58,7 +58,6 @@
   '';
 
   environment.variables = {
-    NIX_BUILD_SHELL = "${pkgs.zsh}/bin/zsh";
   };
 
   system.stateVersion = "25.05";
