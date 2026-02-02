@@ -33,6 +33,7 @@ in {
     gh
     python3
     blesh
+    wl-clipboard
   ];
 
   fonts.fontconfig.enable = true;
@@ -58,16 +59,103 @@ in {
       bleopt prompt_eol_mark=
       bleopt keymap_vi_mode_show:=
 
-      # Autosuggestion styling - grey text, no background
+      # Styling - foreground only, no backgrounds
       ble-face -s auto_complete fg=244
+      ble-face -s syntax_default none
+      ble-face -s syntax_command fg=green
+      ble-face -s syntax_quoted fg=yellow
+      ble-face -s syntax_quotation fg=yellow
+      ble-face -s syntax_expr fg=cyan
+      ble-face -s syntax_error fg=red
+      ble-face -s syntax_varname fg=cyan
+      ble-face -s syntax_delimiter none
+      ble-face -s syntax_param_expansion fg=cyan
+      ble-face -s syntax_history_expansion fg=cyan
+      ble-face -s syntax_function_name fg=green
+      ble-face -s syntax_comment fg=244
+      ble-face -s syntax_glob fg=magenta
+      ble-face -s syntax_brace fg=magenta
+      ble-face -s syntax_tilde fg=cyan
+      ble-face -s syntax_document fg=yellow
+      ble-face -s syntax_document_begin fg=yellow
+      ble-face -s region fg=white,underline
+      ble-face -s region_target fg=white,underline
+      ble-face -s region_match fg=white,underline
+      ble-face -s disabled fg=242
+      ble-face -s overwrite_mode fg=red
+      ble-face -s vbell none
+      ble-face -s vbell_erase none
+      ble-face -s vbell_flash none
 
       # Vi mode settings
       set -o vi
       ble-bind -m auto_complete -f 'C-@' auto_complete/insert
 
+      # Cursor styles: underline for normal, beam for insert (no blinking)
+      ble-bind -m vi_nmap --cursor 4   # steady underline
+      ble-bind -m vi_imap --cursor 6   # steady beam
+      ble-bind -m vi_omap --cursor 4   # steady underline
+      ble-bind -m vi_xmap --cursor 4   # steady underline
+      ble-bind -m vi_smap --cursor 4   # steady underline
+
+      # System clipboard integration (Wayland) via + register
+      # Hook into vi register system for + (code 43) and * (code 42)
+      blehook/eval-after-load keymap_vi '
+        # Override to intercept + and * registers
+        function ble/keymap:vi/register#set {
+          local reg=$1 type=$2 content=$3
+          # Sync to system clipboard for + (43) and * (42) registers
+          if [[ $reg == 43 || $reg == 42 ]]; then
+            { wl-copy -- "$content" 2>/dev/null & disown; } 2>/dev/null
+          fi
+          # Store in register array
+          _ble_keymap_vi_register["$reg"]=$type/$content
+        }
+
+        # Override to read from clipboard for + and * registers
+        function ble/keymap:vi/register#load {
+          local reg=$1
+          if [[ $reg == 43 || $reg == 42 ]]; then
+            local content
+            content=$(wl-paste --no-newline 2>/dev/null)
+            if [[ $content ]]; then
+              ble-edit/content/push-kill-ring "$content" ""
+              return 0
+            fi
+          fi
+          # Fall back to original behavior for other registers
+          [[ ''${_ble_keymap_vi_register[$reg]+set} ]] || return 1
+          local value=''${_ble_keymap_vi_register[$reg]}
+          ble-edit/content/push-kill-ring "''${value#*/}" "''${value%%/*}"
+          return 0
+        }
+      '
+
       # Reduce escape key timeout for faster mode switching
       stty time 0
       bind 'set keyseq-timeout 1'
+
+      # Truncate directory to last 3 components
+      PROMPT_DIRTRIM=3
+
+      # Custom directory display function
+      function ble/prompt/backslash:short-dir {
+        local dir="$PWD"
+        # Replace home with ~
+        dir="''${dir/#$HOME/\~}"
+        # If still too long (>30 chars), truncate from left
+        if ((''${#dir} > 30)); then
+          dir="…''${dir: -29}"
+        fi
+        ble/prompt/print "$dir"
+      }
+
+      # Dev shell indicator
+      function ble/prompt/backslash:nix-shell {
+        if [[ -n "$IN_NIX_SHELL" || -n "$DEVENV_ROOT" ]]; then
+          ble/prompt/print $'\e[36m[dev]\e[0m '
+        fi
+      }
 
       # Custom vi mode indicator function
       function ble/prompt/backslash:vim-mode {
@@ -78,8 +166,24 @@ in {
         esac
       }
 
+      # Format elapsed time for right prompt
+      function ble/prompt/backslash:elapsed {
+        local ms=$_ble_exec_time_tot
+        ((ms > 0)) || return 0
+        if ((ms < 1000)); then
+          ble/prompt/print "''${ms}ms"
+        elif ((ms < 60000)); then
+          ble/prompt/print "$((ms/1000)).$((ms%1000/100))s"
+        else
+          ble/prompt/print "$((ms/60000))m$((ms%60000/1000))s"
+        fi
+      }
+
       # Use the custom mode indicator in prompt
-      PS1='\q{vim-mode}'
+      PS1='\q{nix-shell}\e[34m\q{short-dir}\e[0m \q{vim-mode}'
+
+      # Right prompt with elapsed time
+      bleopt prompt_rps1='\e[90m\q{elapsed}\e[0m'
 
       # Attach blesh
       [[ ! ''${BLE_VERSION-} ]] || ble-attach
@@ -143,6 +247,15 @@ in {
       interval = 1;
     };
     modules = {
+    "wireless _first_" = {
+      position = 0;
+      settings = {
+        color_good = colors.normal.green;
+        format_up = "%essid%quality %bitrate 󱚽 ";
+        format_down = "󰖪 ";
+        format_bitrate = "%g%cb/s";
+      };
+    };
       "volume master" = {
         position = 1;
         settings = {
