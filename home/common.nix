@@ -49,9 +49,39 @@ in {
       cleanup = "sudo nix-collect-garbage -d; sudo nixos-rebuild boot --flake /home/lucy/NixOS";
     };
     bashrcExtra = ''
+      # Load blesh before setting up prompt
       [[ $- == *i* ]] && source -- "$(blesh-share)"/ble.sh --attach=none
+
+      bleopt complete_auto_delay=0
+      bleopt exec_errexit_mark=
+      bleopt exec_elapsed_mark=
+      bleopt prompt_eol_mark=
+      bleopt keymap_vi_mode_show:=
+
+      # Autosuggestion styling - grey text, no background
+      ble-face -s auto_complete fg=244
+
+      # Vi mode settings
       set -o vi
       ble-bind -m auto_complete -f 'C-@' auto_complete/insert
+
+      # Reduce escape key timeout for faster mode switching
+      stty time 0
+      bind 'set keyseq-timeout 1'
+
+      # Custom vi mode indicator function
+      function ble/prompt/backslash:vim-mode {
+        bleopt keymap_vi_mode_update_prompt:=1
+        case $_ble_decode_keymap in
+          (vi_imap) ble/prompt/print $'\e[32m❯\e[0m ' ;;
+          (*)       ble/prompt/print $'\e[35m❯\e[0m ' ;;
+        esac
+      }
+
+      # Use the custom mode indicator in prompt
+      PS1='\q{vim-mode}'
+
+      # Attach blesh
       [[ ! ''${BLE_VERSION-} ]] || ble-attach
     '';
   };
