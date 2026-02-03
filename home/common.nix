@@ -40,6 +40,7 @@ in {
 
   home.sessionVariables = {
     EDITOR = "nvim";
+    NIX_BUILD_SHELL = "bash";
   };
 
   # Programs

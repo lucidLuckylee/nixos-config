@@ -9,6 +9,9 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Kernel parameters
+  boot.kernelParams = [ "tsc=reliable" ];
+
   # Networking
   networking.networkmanager.enable = true;
 
@@ -37,6 +40,11 @@
 
   programs.bash.enable = true;
 
+  # Create /bin/bash symlink for shebang compatibility
+  system.activationScripts.binbash = ''
+    ln -sfn ${pkgs.bash}/bin/bash /bin/bash
+  '';
+
   # Podman container support
   virtualisation.podman = {
     enable = true;
@@ -47,7 +55,10 @@
   virtualisation.libvirtd.enable = true;
   environment.systemPackages = with pkgs; [
     quickemu
+    libvirt
+    virt-manager
   ];
+
 
   # USB auto-mounting
   services.udisks2.enable = true;
