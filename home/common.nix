@@ -34,6 +34,7 @@ in {
     python3
     blesh
     wl-clipboard
+    unzip
   ];
 
   fonts.fontconfig.enable = true;
@@ -351,8 +352,12 @@ in {
           "--locked XF86AudioRaiseVolume" = "exec pactl set-sink-volume \@DEFAULT_SINK@ +5%";
           "--locked XF86AudioMicMute" = "exec pactl set-source-mute \@DEFAULT_SOURCE@ toggle";
 
-          # Special key to take a screenshot with grim
-          "Print" = "exec grim";
+          # Screenshot: Print = select region, Shift+Print = focused window (also copies to clipboard)
+          "Print" = ''exec sh -c 'mkdir -p ~/Screenshots && f=~/Screenshots/region_$(date +%Y-%m-%d_%H-%M-%S).png && grim -g "$(slurp)" "$f" && wl-copy < "$f"' '';
+          "Shift+Print" = ''exec sh -c 'mkdir -p ~/Screenshots && win=$(swaymsg -t get_tree | jq -r ".. | select(.focused?) | .app_id // .name // \"window\"" | tr -cs "[:alnum:]-_" "_" | head -c 30) && geo=$(swaymsg -t get_tree | jq -r ".. | select(.focused?) | .rect | \"\(.x),\(.y) \(.width)x\(.height)\"") && f=~/Screenshots/''${win}_$(date +%Y-%m-%d_%H-%M-%S).png && grim -g "$geo" "$f" && wl-copy < "$f"' '';
+
+          # Move entire workspace to the other monitor (cycles through outputs)
+          "${mod}+Shift+w" = ''exec swaymsg -t get_outputs | jq '[.[] | select(.active == true)] | .[(map(.focused) | index(true) + 1) % length].name' | xargs swaymsg move workspace to'';
 
           # Toggle always-on mode
           "${mod}+Shift+m" = ''exec systemctl --user stop swayidle.service; mode "always-on"'';
