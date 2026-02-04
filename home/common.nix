@@ -35,6 +35,9 @@ in {
     blesh
     wl-clipboard
     unzip
+    remmina
+    nomachine-client
+    wakeonlan
   ];
 
   fonts.fontconfig.enable = true;
@@ -50,6 +53,7 @@ in {
     shellAliases = {
       update = "sudo nixos-rebuild switch --flake /home/lucy/NixOS";
       cleanup = "sudo nix-collect-garbage -d; sudo nixos-rebuild boot --flake /home/lucy/NixOS";
+      wake-mac = "wakeonlan 1c:f6:4c:45:3a:91";
     };
     bashrcExtra = ''
       # Only configure ble.sh in interactive shells
@@ -221,6 +225,21 @@ in {
         };
         normal = colors.normal;
         bright = colors.bright;
+      };
+    };
+  };
+
+  programs.ssh = {
+    enable = true;
+    matchBlocks = {
+      "ZeroSync" = {
+        hostname = "168.119.139.152";
+        user = "root";
+      };
+      "Mac" = {
+        hostname = "192.168.1.190";
+        user = "lee";
+        extraOptions.RequestTTY = "yes";
       };
     };
   };
