@@ -25,7 +25,6 @@ in {
     devenv
     ffmpeg
     discord
-    code-cursor
     claude-code
     jq
     tmux
