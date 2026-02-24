@@ -11,8 +11,15 @@
   # Hostname
   networking.hostName = "desktop";
 
-  # Desktop-specific hardware (add as needed)
-  # hardware.bluetooth.enable = true;
+  # ── NVIDIA GPU ────────────────────────────────────────────────────
+  services.xserver.videoDrivers = [ "nvidia" ];
+
+  hardware.nvidia = {
+    modesetting.enable = true;
+    open = false;  # Proprietary driver (required for GTX 1080)
+  };
+
+  hardware.graphics.enable = true;
 
   # Home Manager configuration
   home-manager.backupFileExtension = "backup";

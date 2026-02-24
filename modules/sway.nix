@@ -24,7 +24,13 @@
   services.getty.autologinUser = "lucy";
   environment.loginShellInit = ''
     if [ "$(tty)" = "/dev/tty1" ]; then
-      exec sway
+      exec sway --unsupported-gpu
     fi
   '';
+
+  # NVIDIA + Wayland compatibility
+  environment.sessionVariables = {
+    WLR_NO_HARDWARE_CURSORS = "1";  # Fix invisible/glitchy cursor
+    NIXOS_OZONE_WL = "1";           # Electron apps use Wayland
+  };
 }

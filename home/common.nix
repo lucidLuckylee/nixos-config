@@ -7,6 +7,11 @@ let
   opacity_alpha_hex = theme.opacity_alpha_hex;
   mod = "Mod4";
 in {
+  imports = [
+    ./mcp.nix
+    ./telegram-claude.nix
+  ];
+
   home.stateVersion = "25.05";
 
   # Symlink ~/Usb to USB mount location
@@ -37,6 +42,8 @@ in {
     remmina
     nomachine-client
     wakeonlan
+    pass                # password-store
+    pinentry-curses     # GPG passphrase entry
   ];
 
   fonts.fontconfig.enable = true;
@@ -241,6 +248,17 @@ in {
         extraOptions.RequestTTY = "yes";
       };
     };
+  };
+
+  programs.gpg = {
+    enable = true;
+  };
+
+  services.gpg-agent = {
+    enable = true;
+    defaultCacheTtl = 3600;      # Cache passphrase for 1 hour
+    maxCacheTtl = 86400;         # Max 24 hours
+    pinentry.package = pkgs.pinentry-curses;
   };
 
   programs.git = {
