@@ -60,6 +60,7 @@ in {
       update = "sudo nixos-rebuild switch --flake /home/lucy/NixOS";
       cleanup = "sudo nix-collect-garbage -d; sudo nixos-rebuild boot --flake /home/lucy/NixOS";
       wake-mac = "wakeonlan 1c:f6:4c:45:3a:91";
+      clone = "( { output=$(alacritty 2>&1) || echo '$output'; } & disown)";
     };
     bashrcExtra = ''
       # Only configure ble.sh in interactive shells
