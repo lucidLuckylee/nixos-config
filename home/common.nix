@@ -44,6 +44,7 @@ in {
     wakeonlan
     pass                # password-store
     pinentry-curses     # GPG passphrase entry
+    pv
   ];
 
   fonts.fontconfig.enable = true;
