@@ -60,6 +60,19 @@
   ];
 
 
+  # ── Gaming ──────────────────────────────────────────────────────
+  hardware.graphics = {
+    enable = true;
+    enable32Bit = true;  # 32-bit Vulkan/OpenGL for Steam games
+  };
+
+  programs.steam = {
+    enable = true;
+    gamescopeSession.enable = true;
+  };
+
+  programs.gamemode.enable = true;  # Feral GameMode – optimizes CPU/GPU on demand
+
   # USB auto-mounting
   services.udisks2.enable = true;
 
