@@ -45,6 +45,7 @@ in {
     pass                # password-store
     pinentry-curses     # GPG passphrase entry
     pv
+    sox                 # Voice chat for claude-code
   ];
 
   fonts.fontconfig.enable = true;

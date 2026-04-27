@@ -57,6 +57,7 @@
     quickemu
     libvirt
     virt-manager
+    pciutils
   ];
 
 

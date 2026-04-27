@@ -16,12 +16,15 @@
 
   hardware.nvidia = {
     modesetting.enable = true;
+    package = config.boot.kernelPackages.nvidiaPackages.legacy_580;
     open = false;  # Proprietary driver (required for GTX 1080)
   };
 
   hardware.graphics.enable = true;
+  # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
+  hardware.enableRedistributableFirmware = true;
 
-  # Home Manager configuration
+# Home Manager configuration
   home-manager.backupFileExtension = "backup";
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
