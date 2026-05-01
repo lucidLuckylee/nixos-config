@@ -40,7 +40,6 @@ in {
     wl-clipboard
     unzip
     remmina
-    nomachine-client
     wakeonlan
     pass                # password-store
     pinentry-curses     # GPG passphrase entry
