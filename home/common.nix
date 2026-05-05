@@ -6,6 +6,16 @@ let
   opacity = theme.opacity;
   opacity_alpha_hex = theme.opacity_alpha_hex;
   mod = "Mod4";
+
+  # Stable Rust toolchain assembled from fenix components
+  rustToolchain = pkgs.fenix.combine (with pkgs.fenix.stable; [
+    cargo
+    rustc
+    rustfmt
+    clippy
+    rust-src
+    rust-analyzer
+  ]);
 in {
   imports = [
     ./mcp.nix
@@ -24,7 +34,7 @@ in {
     nerd-fonts.dejavu-sans-mono
     ripgrep
     gcc
-    rustup
+    rustToolchain
     telegram-desktop
     texlive.combined.scheme-full
     devenv
@@ -239,6 +249,7 @@ in {
 
   programs.ssh = {
     enable = true;
+    enableDefaultConfig = false;
     matchBlocks = {
       "ZeroSync" = {
         hostname = "168.119.139.152";
@@ -409,15 +420,77 @@ in {
           "${mod}+Shift+m" = ''exec systemctl --user stop swayidle.service; mode "always-on"'';
         }
       );
+      colors = {
+        background = colors.background;
+        focused = {
+          border      = colors.bright.red;
+          background  = colors.normal.black;
+          text        = colors.bright.white;
+          indicator   = colors.bright.white;
+          childBorder = colors.bright.red;
+        };
+        focusedInactive = {
+          border      = colors.normal.black;
+          background  = colors.normal.black;
+          text        = colors.bright.white;
+          indicator   = colors.normal.black;
+          childBorder = colors.normal.black;
+        };
+        unfocused = {
+          border      = colors.normal.black;
+          background  = colors.normal.black;
+          text        = colors.foreground;
+          indicator   = colors.normal.black;
+          childBorder = colors.normal.black;
+        };
+        urgent = {
+          border      = colors.bright.yellow;
+          background  = colors.bright.yellow;
+          text        = colors.normal.black;
+          indicator   = colors.bright.yellow;
+          childBorder = colors.bright.yellow;
+        };
+        placeholder = {
+          border      = colors.bright.black;
+          background  = colors.bright.black;
+          text        = colors.bright.white;
+          indicator   = colors.bright.black;
+          childBorder = colors.bright.black;
+        };
+      };
       bars = [{
         position = "top";
         statusCommand = "i3status -c ${config.xdg.configHome}/i3status/config";
         trayOutput = "none";
         colors = {
           background = colors.background + opacity_alpha_hex;
+          statusline = colors.bright.white;
+          separator  = colors.normal.red;
+          focusedWorkspace = {
+            border     = colors.bright.red;
+            background = colors.bright.red;
+            text       = colors.bright.white;
+          };
+          activeWorkspace = {
+            border     = colors.normal.red;
+            background = colors.normal.black;
+            text       = colors.bright.white;
+          };
+          inactiveWorkspace = {
+            border     = colors.background;
+            background = colors.background;
+            text       = colors.foreground;
+          };
+          urgentWorkspace = {
+            border     = colors.bright.yellow;
+            background = colors.bright.yellow;
+            text       = colors.normal.black;
+          };
         };
       }];
       window.titlebar = false;
+      window.border = 1;
+      window.hideEdgeBorders = "none";
       window.commands = [
         {
           command = "opacity ${toString opacity}";

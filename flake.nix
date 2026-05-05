@@ -8,9 +8,13 @@
 
     # Neovim configuration from GitHub
     nvim.url = "github:lucidLuckylee/leon";
+
+    # Rust toolchain manager (replaces rustup on NixOS)
+    fenix.url = "github:nix-community/fenix";
+    fenix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, home-manager, nvim, ... }:
+  outputs = { self, nixpkgs, home-manager, nvim, fenix, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; config.allowUnfree = true;};
@@ -22,6 +26,7 @@
           ./machines/nixos/configuration.nix
           home-manager.nixosModules.home-manager
           { _module.args = { inherit nvim; }; }
+          { nixpkgs.overlays = [ fenix.overlays.default ]; }
         ];
       };
 
@@ -32,6 +37,7 @@
           ./machines/desktop/configuration.nix
           home-manager.nixosModules.home-manager
           { _module.args = { inherit nvim; }; }
+          { nixpkgs.overlays = [ fenix.overlays.default ]; }
         ];
       };
     };

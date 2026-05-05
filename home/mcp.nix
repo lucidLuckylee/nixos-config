@@ -48,6 +48,12 @@ let
       defaultMode = "default";
     };
 
+    sandbox = {
+      filesystem = {
+        allowRead = [ "/nix/store/**" ];
+      };
+    };
+
     enabledPlugins = {
       "ralph-loop@claude-plugins-official" = true;
       "dev-browser@dev-browser-marketplace" = true;
@@ -55,6 +61,14 @@ let
       "frontend-design@claude-plugins-official" = true;
     };
   };
+
+  # ── GitHub MCP wrapper (sources PAT from pass) ────────────────────
+  githubMcpStart = pkgs.writeShellScript "github-mcp-start" ''
+    set -euo pipefail
+    export PATH="${pkgs.gnupg}/bin:$PATH"
+    export GITHUB_PERSONAL_ACCESS_TOKEN="$(${pkgs.pass}/bin/pass show claude-mcp/github/pat)"
+    exec ${npx} -y @modelcontextprotocol/server-github
+  '';
 
   # ── MCP Servers (merged into ~/.claude.json) ──────────────────────
   mcpServers = {
@@ -103,10 +117,16 @@ let
       args = [ "mcp-server-fetch" ];
     };
 
-    # Static analysis / security scanning
-    semgrep = {
-      command = uvx;
-      args = [ "semgrep-mcp" ];
+    # GitHub: cross-repo issues, PRs, code search, file viewing
+    github = {
+      command = "${githubMcpStart}";
+      args = [];
+    };
+
+    # Context7: up-to-date library/crate docs on demand
+    context7 = {
+      command = npx;
+      args = [ "-y" "@upstash/context7-mcp" ];
     };
   };
 
