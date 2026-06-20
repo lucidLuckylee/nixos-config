@@ -258,15 +258,15 @@ in {
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks = {
+    settings = {
       "ZeroSync" = {
-        hostname = "168.119.139.152";
-        user = "root";
+        HostName = "168.119.139.152";
+        User = "root";
       };
       "Mac" = {
-        hostname = "192.168.1.190";
-        user = "lee";
-        extraOptions.RequestTTY = "yes";
+        HostName = "192.168.1.190";
+        User = "lee";
+        RequestTTY = "yes";
       };
     };
   };
