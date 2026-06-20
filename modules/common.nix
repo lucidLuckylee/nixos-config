@@ -11,6 +11,21 @@
     "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
   ];
 
+  # GitHub API auth so `nixos-rebuild`/`nix flake update` don't hit the
+  # unauthenticated rate limit. The token is kept OUT of the Nix store (and
+  # git). Create /etc/nix/access-tokens.conf once (reuses the `gh` login token):
+  #
+  #   printf 'access-tokens = github.com=%s\n' "$(gh auth token)" \
+  #     | sudo tee /etc/nix/access-tokens.conf >/dev/null
+  #   sudo chown root:wheel /etc/nix/access-tokens.conf
+  #   sudo chmod 640 /etc/nix/access-tokens.conf
+  #
+  # Re-run if the gh token rotates. `!include` (leading !) silently no-ops if
+  # the file is absent, so this is safe before the file exists.
+  nix.extraOptions = ''
+    !include /etc/nix/access-tokens.conf
+  '';
+
   # Bootloader (UEFI)
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
