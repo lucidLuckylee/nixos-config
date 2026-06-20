@@ -1,6 +1,11 @@
-{ config, pkgs, nvim, ... }:
+{ config, lib, pkgs, nvim, ... }:
 
-{
+let
+  # Only the desktop uses the NVIDIA proprietary driver, which needs Wayland
+  # workarounds the AMD machine does not — and applying them unnecessarily can
+  # perturb rendering. Gate them on the driver actually being in use.
+  nvidia = lib.elem "nvidia" config.services.xserver.videoDrivers;
+in {
   programs.sway = {
     enable = true;
     wrapperFeatures.gtk = true;
@@ -24,13 +29,14 @@
   services.getty.autologinUser = "lucy";
   environment.loginShellInit = ''
     if [ "$(tty)" = "/dev/tty1" ]; then
-      exec sway --unsupported-gpu
+      exec sway ${lib.optionalString nvidia "--unsupported-gpu"}
     fi
   '';
 
-  # NVIDIA + Wayland compatibility
   environment.sessionVariables = {
-    WLR_NO_HARDWARE_CURSORS = "1";  # Fix invisible/glitchy cursor
-    NIXOS_OZONE_WL = "1";           # Electron apps use Wayland
+    NIXOS_OZONE_WL = "1";  # Electron apps use Wayland
+  } // lib.optionalAttrs nvidia {
+    # NVIDIA-only: force software cursors to avoid invisible/glitchy pointer
+    WLR_NO_HARDWARE_CURSORS = "1";
   };
 }
