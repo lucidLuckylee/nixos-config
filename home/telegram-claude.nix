@@ -30,8 +30,6 @@ let
       claude-telegram-bot
   '';
 in {
-  home.packages = [ pkgs.uv ];
-
   systemd.user.services.claude-telegram = {
     Unit = {
       Description = "Claude Code Telegram Bot";

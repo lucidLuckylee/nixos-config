@@ -88,8 +88,5 @@
     /etc/profiles/per-user:/etc/profiles/per-user:ro"
   '';
 
-  environment.variables = {
-  };
-
   system.stateVersion = "25.05";
 }

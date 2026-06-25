@@ -17,7 +17,6 @@
   outputs = { self, nixpkgs, home-manager, nvim, fenix, ... }:
     let
       system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; config.allowUnfree = true;};
     in {
       # Laptop configuration
       nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
