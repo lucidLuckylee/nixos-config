@@ -54,7 +54,8 @@ in {
     pass                # password-store
     pinentry-curses     # GPG passphrase entry
     pv
-    sox                 # Voice chat for claude-code
+    sox                          # Voice chat for claude-code
+    playwright-driver.browsers   # Patched Chromium/Firefox/WebKit for Playwright on NixOS
   ];
 
   fonts.fontconfig.enable = true;
@@ -62,6 +63,10 @@ in {
   home.sessionVariables = {
     EDITOR = "nvim";
     NIX_BUILD_SHELL = "bash";
+    # Point Playwright at Nix-managed browsers; suppress its self-download
+    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
   };
 
   # Programs
