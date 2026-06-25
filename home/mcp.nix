@@ -128,6 +128,12 @@ let
       command = npx;
       args = [ "-y" "@upstash/context7-mcp" ];
     };
+
+    # Playwright: browser automation (navigate, click, screenshot, fill forms)
+    playwright = {
+      command = npx;
+      args = [ "-y" "@playwright/mcp" ];
+    };
   };
 
   mcpConfigFile = pkgs.writeText "claude-mcp-servers.json"
