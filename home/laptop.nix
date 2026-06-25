@@ -1,10 +1,6 @@
 { config, pkgs, ... }:
 
-let
-  theme = import ./colors.nix;
-  colors = theme.colors;
-  mod = "Mod4";
-in {
+{
   imports = [ ./common.nix ];
 
   # Add laptop-specific packages
@@ -14,15 +10,6 @@ in {
 
   # Add laptop-specific i3status modules
   programs.i3status.modules = {
-    "wireless _first_" = {
-      position = 0;
-      settings = {
-        color_good = colors.normal.green;
-        format_up = "%essid%quality %bitrate 󱚽 ";
-        format_down = "󰖪 ";
-        format_bitrate = "%g%cb/s";
-      };
-    };
     "battery 0" = {
       position = 3;
       settings = {

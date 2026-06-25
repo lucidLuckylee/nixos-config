@@ -55,7 +55,10 @@ in {
     pinentry-curses     # GPG passphrase entry
     pv
     sox                          # Voice chat for claude-code
-    playwright-driver.browsers   # Patched Chromium/Firefox/WebKit for Playwright on NixOS
+    # Patched browsers for Playwright; also kept here as a gcroot so
+    # nix-collect-garbage doesn't sweep them between home-manager switches.
+    playwright-driver.browsers
+    uv                           # Python tool runner (shared by mcp.nix + telegram-claude.nix)
   ];
 
   fonts.fontconfig.enable = true;
@@ -376,19 +379,7 @@ in {
           xkb_model = "pc104";
         };
       };
-      output = let wp = ./wallpaper.jpg; in {
-        "*" = {
-          bg = "${wp} fill";
-        };
-        "DP-1" = {
-          mode = "1920x1080@144.001Hz";
-          pos = "1680 0";
-        };
-        "DVI-D-1" = {
-          mode = "1680x1050@120Hz";
-          pos = "0 0";
-        };
-      };
+      output."*".bg = "${./wallpaper.jpg} fill";
       workspaceAutoBackAndForth = true;
       focus = {
         wrapping = "yes";

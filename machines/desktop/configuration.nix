@@ -20,7 +20,6 @@
     open = false;  # Proprietary driver (required for GTX 1080)
   };
 
-  hardware.graphics.enable = true;
   # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
   hardware.enableRedistributableFirmware = true;
 

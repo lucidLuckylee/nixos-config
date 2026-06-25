@@ -141,7 +141,6 @@ let
 in {
   home.packages = [
     pkgs.nodejs
-    pkgs.uv
     rust-mcp-server
     rust-analyzer-mcp
   ];
