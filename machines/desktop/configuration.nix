@@ -6,6 +6,7 @@
     ../../modules/common.nix
     ../../modules/users.nix
     ../../modules/sway.nix
+    ../../modules/overlays.nix
   ];
 
   # Hostname
