@@ -11,6 +11,7 @@
   imports = [
     ../../modules/overlays.nix
     ./window-manager.nix
+    ./keyboard.nix
   ];
 
   nixpkgs.hostPlatform = "aarch64-darwin";
@@ -160,9 +161,7 @@
     # then add it here.
     casks = [
       "alacritty"
-      "betterdisplay"
       "karabiner-elements"
-      "nomachine"
       "telegram"
     ];
   };
