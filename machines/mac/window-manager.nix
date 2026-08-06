@@ -21,6 +21,35 @@ let
   theme = import ../../home/colors.nix;
   opacity = theme.opacity;
 in {
+  # ── Code signing ───────────────────────────────────────────────────
+  # On Apple Silicon the linker ad-hoc signs every binary it produces, leaving
+  # the signature flagged `linker-signed` (0x20002). macOS will not persist a
+  # TCC grant for a linker-signed executable: the process asks for
+  # Accessibility, is refused, and never appears in the Privacy & Security list
+  # with a toggle at all — so there is no way to approve it. With KeepAlive set
+  # the agent then relaunches every ten seconds, asks again, and exits again.
+  #
+  # Re-signing with a plain ad-hoc signature clears the flag (0x20002 → 0x2)
+  # and the binaries become grantable. This is done at build time with
+  # nixpkgs' sigtool, verified to produce flags=0x2(adhoc).
+  #
+  # Note the grant is keyed to the binary's code hash, so updating yabai or
+  # skhd will require re-approving them in System Settings.
+  nixpkgs.overlays = [
+    (final: prev: {
+      yabai = prev.yabai.overrideAttrs (old: {
+        postFixup = (old.postFixup or "") + ''
+          ${final.darwin.sigtool}/bin/codesign --force --sign - "$out/bin/yabai"
+        '';
+      });
+      skhd = prev.skhd.overrideAttrs (old: {
+        postFixup = (old.postFixup or "") + ''
+          ${final.darwin.sigtool}/bin/codesign --force --sign - "$out/bin/skhd"
+        '';
+      });
+    })
+  ];
+
   services.yabai = {
     enable = true;
 
