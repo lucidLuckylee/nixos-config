@@ -65,11 +65,22 @@ in {
     claude-code
     rustToolchain
     nerd-fonts.dejavu-sans-mono
+    texlive.combined.scheme-full   # ~2.2 GiB download, 4.9 GiB on disk
+    # Patched browsers for Playwright; also kept here as a gcroot so
+    # nix-collect-garbage doesn't sweep them between home-manager switches.
+    # Verified working on aarch64-darwin (ad-hoc signed arm64 bundles).
+    playwright-driver.browsers
   ];
 
   home.sessionVariables = {
     EDITOR = "nvim";
     NIX_BUILD_SHELL = "bash";
+    # Point Playwright at Nix-managed browsers; suppress its self-download.
+    # These browsers only work with a matching Playwright release — see the
+    # note on playwright-mcp in ./mcp.nix.
+    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
   };
 
   # Programs

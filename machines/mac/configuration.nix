@@ -10,6 +10,7 @@
 {
   imports = [
     ../../modules/overlays.nix
+    ./window-manager.nix
   ];
 
   nixpkgs.hostPlatform = "aarch64-darwin";

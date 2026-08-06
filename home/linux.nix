@@ -24,24 +24,13 @@ in {
     firefox
     gcc
     telegram-desktop
-    texlive.combined.scheme-full
     discord
     swayidle
     wl-clipboard
     remmina
-    # Patched browsers for Playwright; also kept here as a gcroot so
-    # nix-collect-garbage doesn't sweep them between home-manager switches.
-    playwright-driver.browsers
   ];
 
   fonts.fontconfig.enable = true;
-
-  home.sessionVariables = {
-    # Point Playwright at Nix-managed browsers; suppress its self-download
-    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
-    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
-  };
 
   programs.bash.shellAliases = {
     update = "sudo nixos-rebuild switch --flake /home/lucy/NixOS";
