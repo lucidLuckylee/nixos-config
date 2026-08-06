@@ -114,6 +114,19 @@ in {
   # entire point of moving these off the hand-run LaunchAgents.
   launchd.user.agents.skhd.serviceConfig.RunAtLoad = true;
 
+  # Neither module sets a log path, so when these fail under launchd they fail
+  # silently: `launchctl print` reports exit code 0 and the unified log shows
+  # only XPC noise. The actual message ("yabai: could not access accessibility
+  # features! abort..") goes nowhere. Capture it.
+  launchd.user.agents.yabai.serviceConfig = {
+    StandardOutPath = "/tmp/yabai.out.log";
+    StandardErrorPath = "/tmp/yabai.err.log";
+  };
+  launchd.user.agents.skhd.serviceConfig = {
+    StandardOutPath = "/tmp/skhd.out.log";
+    StandardErrorPath = "/tmp/skhd.err.log";
+  };
+
   services.skhd = {
     enable = true;
 
