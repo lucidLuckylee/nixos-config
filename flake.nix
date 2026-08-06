@@ -6,6 +6,10 @@
     home-manager.url = "github:nix-community/home-manager/master";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
+    # macOS system configuration (the M4 Mac shares home/shared.nix)
+    nix-darwin.url = "github:nix-darwin/nix-darwin/master";
+    nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+
     # Neovim configuration from GitHub
     nvim.url = "github:lucidLuckylee/leon";
 
@@ -14,7 +18,7 @@
     fenix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, home-manager, nvim, fenix, ... }:
+  outputs = { self, nixpkgs, home-manager, nix-darwin, nvim, fenix, ... }:
     let
       system = "x86_64-linux";
     in {
@@ -35,6 +39,17 @@
         modules = [
           ./machines/desktop/configuration.nix
           home-manager.nixosModules.home-manager
+          { _module.args = { inherit nvim; }; }
+          { nixpkgs.overlays = [ fenix.overlays.default ]; }
+        ];
+      };
+
+      # Mac configuration (Apple Silicon)
+      #   darwin-rebuild switch --flake .#mac
+      darwinConfigurations.mac = nix-darwin.lib.darwinSystem {
+        modules = [
+          ./machines/mac/configuration.nix
+          home-manager.darwinModules.home-manager
           { _module.args = { inherit nvim; }; }
           { nixpkgs.overlays = [ fenix.overlays.default ]; }
         ];

@@ -4,7 +4,7 @@
 # MCP servers are merged into ~/.claude.json via an activation script, since
 # that file contains dynamic state that Nix shouldn't fully own.
 #
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 let
   npx = "${pkgs.nodejs}/bin/npx";
   uvx = "${pkgs.uv}/bin/uvx";
@@ -109,7 +109,7 @@ let
     # File system operations
     filesystem = {
       command = npx;
-      args = [ "-y" "@modelcontextprotocol/server-filesystem" "/home/lucy" ];
+      args = [ "-y" "@modelcontextprotocol/server-filesystem" config.home.homeDirectory ];
     };
     # HTTP fetch
     fetch = {
