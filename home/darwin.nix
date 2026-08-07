@@ -29,6 +29,24 @@
     # clang comes from the Xcode toolchain on macOS, so no gcc here.
   ];
 
+  # Locale. NixOS gets this from i18n.defaultLocale / i18n.extraLocaleSettings
+  # in modules/common.nix; nix-darwin has no equivalent, so LANG was simply
+  # unset here and ble.sh complained about it. Both locales below ship with
+  # macOS (confirmed via `locale -a`), so no glibc locale archive is needed.
+  # Values mirror the NixOS side: English messages, German formatting.
+  home.sessionVariables = {
+    LANG = "en_US.UTF-8";
+    LC_ADDRESS = "de_DE.UTF-8";
+    LC_IDENTIFICATION = "de_DE.UTF-8";
+    LC_MEASUREMENT = "de_DE.UTF-8";
+    LC_MONETARY = "de_DE.UTF-8";
+    LC_NAME = "de_DE.UTF-8";
+    LC_NUMERIC = "de_DE.UTF-8";
+    LC_PAPER = "de_DE.UTF-8";
+    LC_TELEPHONE = "de_DE.UTF-8";
+    LC_TIME = "de_DE.UTF-8";
+  };
+
   # home-manager takes ownership of ~/.bashrc, which until now was where the
   # Homebrew and ~/.local/bin PATH entries were set (the previous file is kept
   # as ~/.bashrc.backup). Re-add them here so brew and the tools installed

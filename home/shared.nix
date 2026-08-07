@@ -254,7 +254,14 @@ in {
       terminal.shell = "${pkgs.bash}/bin/bash";
       font = {
         normal = {
-          family = "DejaVu Sans Mono";
+          # nerd-fonts.dejavu-sans-mono does not register a "DejaVu Sans Mono"
+          # family — it patches the glyphs and renames to "DejaVuSansM Nerd
+          # Font", with a Mono variant that forces every glyph to a single
+          # cell (what a terminal wants) and a Propo variant that does not.
+          # fontconfig fuzzy-matches the old name on Linux, so the original
+          # spelling keeps working there; macOS Core Text requires an exact
+          # match and simply fails to load, so name it precisely.
+          family = if isDarwin then "DejaVuSansM Nerd Font Mono" else "DejaVu Sans Mono";
           style = "Regular";
         };
         size = 12.0;
