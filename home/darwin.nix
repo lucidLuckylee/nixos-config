@@ -1,4 +1,17 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
+
+# `stty` is the one GNU coreutils tool that misbehaves here. ble.sh runs
+# `stty sane` while setting up the terminal, and GNU's implementation cannot
+# apply that on macOS — it prints
+#   stty: 'standard input': unable to perform all requested operations
+# on every shell start. BSD /bin/stty handles it fine; tested on a real pty,
+# and `sane` is the only operation that differs (time/-echo/raw/min all work
+# in both).
+#
+# Overriding the coreutils derivation to drop bin/stty would rebuild coreutils
+# and everything downstream of it, so instead shadow just this one command by
+# putting a link to the BSD binary ahead of the profile on PATH. Everything
+# else — timeout, GNU sed/grep/find semantics — is untouched.
 
 # macOS-only home-manager configuration.
 #
@@ -27,6 +40,15 @@
     gawk
 
     # clang comes from the Xcode toolchain on macOS, so no gcc here.
+  ];
+
+  # Ahead of the home-manager profile on PATH, so this stty wins over GNU's.
+  # Not in home.packages — that would collide with coreutils in the profile.
+  home.sessionPath = [
+    "${pkgs.runCommandLocal "bsd-stty" { } ''
+      mkdir -p "$out/bin"
+      ln -s /bin/stty "$out/bin/stty"
+    ''}/bin"
   ];
 
   # Locale. NixOS gets this from i18n.defaultLocale / i18n.extraLocaleSettings
