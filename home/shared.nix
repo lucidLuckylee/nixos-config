@@ -251,7 +251,20 @@ in {
     enable = true;
 
     settings = {
-      terminal.shell = "${pkgs.bash}/bin/bash";
+      # macOS terminals conventionally run a *login* shell, and here it is
+      # mandatory: home-manager exports home.sessionVariables from
+      # hm-session-vars.sh, which is sourced by ~/.profile and therefore only
+      # read by login shells. Launching bash without --login skipped the lot —
+      # LANG unset (ble.sh complains), EDITOR falling back to macOS's nano
+      # rather than nvim, and NIX_BUILD_SHELL / PLAYWRIGHT_BROWSERS_PATH /
+      # LC_* all missing.
+      #
+      # Linux does not need this: Sway inherits an already-populated
+      # environment from the session, so leave that side untouched.
+      terminal.shell = if isDarwin then {
+        program = "${pkgs.bash}/bin/bash";
+        args = [ "--login" ];
+      } else "${pkgs.bash}/bin/bash";
       font = {
         normal = {
           # nerd-fonts.dejavu-sans-mono does not register a "DejaVu Sans Mono"
