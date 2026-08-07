@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 # yabai + skhd, managed as launchd agents so they start at login.
 #
@@ -20,6 +20,54 @@
 let
   theme = import ../../home/colors.nix;
   opacity = theme.opacity;
+
+  # Reproduces the nix-darwin yabai module's config-file generation. Same
+  # helper, same file name, same content — so writeScript yields the very same
+  # store path the module itself passes to `-c`. Done here rather than reading
+  # launchd.user.agents.yabai.serviceConfig.ProgramArguments, which would
+  # recurse, since that option is what gets overridden below.
+  toYabaiConfig = opts:
+    lib.concatStringsSep "\n"
+      (lib.mapAttrsToList (p: v: "yabai -m config ${p} ${toString v}") opts);
+
+  yabaiCfg = config.services.yabai;
+  skhdCfg = config.services.skhd;
+
+  yabaiConfigFile = pkgs.writeScript "yabairc" (
+    (if yabaiCfg.config != { } then "${toYabaiConfig yabaiCfg.config}" else "")
+    + lib.optionalString (yabaiCfg.extraConfig != "") ("\n" + yabaiCfg.extraConfig + "\n"));
+
+  # ── Waiting for the Nix Store volume ────────────────────────────────
+  # The store is a separate, encrypted APFS volume that determinate-nixd has to
+  # unlock before it can be mounted, and that lands *after* the LaunchAgents
+  # fire. Observed on this machine: boot at 10:16:17, agents attempted at
+  # 10:16:26.5 and refused with
+  #   Could not find and/or execute program specified by service:
+  #   2: No such file or directory: /nix/store/…/bin/yabai
+  # with the volume finally mounting at 10:16:30.0 — three and a half seconds
+  # too late. launchd treats a missing executable as EX_CONFIG (78) and gives
+  # up permanently rather than retrying, so KeepAlive never rescues it and the
+  # agents stay dead until something bootstraps them by hand.
+  #
+  # Fix: make the program /bin/sh, which lives on the root volume and is
+  # therefore always executable, and have it wait for the real binary before
+  # exec'ing it. `exec` replaces the process image, so the running program is
+  # yabai itself — verified that the Accessibility grant still applies and
+  # `yabai -m query` works through the wrapper.
+  #
+  # The wait is bounded; on timeout the exec fails and KeepAlive retries.
+  waitThenExec = binary: args: [
+    "/bin/sh"
+    "-c"
+    ''
+      n=0
+      while [ ! -x "${binary}" ] && [ $n -lt 120 ]; do
+        sleep 1
+        n=$((n + 1))
+      done
+      exec "${binary}" ${args}
+    ''
+  ];
 in {
   # ── Code signing ───────────────────────────────────────────────────
   # On Apple Silicon the linker ad-hoc signs every binary it produces, leaving
@@ -121,10 +169,15 @@ in {
   launchd.user.agents.yabai.serviceConfig = {
     StandardOutPath = "/tmp/yabai.out.log";
     StandardErrorPath = "/tmp/yabai.err.log";
+    ProgramArguments = lib.mkForce
+      (waitThenExec "${yabaiCfg.package}/bin/yabai" ''-c "${yabaiConfigFile}"'');
   };
   launchd.user.agents.skhd.serviceConfig = {
     StandardOutPath = "/tmp/skhd.out.log";
     StandardErrorPath = "/tmp/skhd.err.log";
+    # /etc/skhdrc is on the root volume, so only the binary needs waiting for.
+    ProgramArguments = lib.mkForce
+      (waitThenExec "${skhdCfg.package}/bin/skhd" "-c /etc/skhdrc");
   };
 
   services.skhd = {

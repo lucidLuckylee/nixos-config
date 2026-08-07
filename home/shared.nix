@@ -179,8 +179,15 @@ in {
           }
         '
 
-        # Reduce escape key timeout for faster mode switching
-        stty time 0
+        # Reduce escape key timeout for faster mode switching.
+        #
+        # `stty time 0` sets the non-canonical read timeout (VTIME). On macOS
+        # this resolves to GNU coreutils' stty rather than BSD /bin/stty, and
+        # the underlying tcsetattr refuses the setting — printing "unable to
+        # perform all requested operations" on every shell start. The terminal
+        # is in canonical mode here so the setting is a no-op anyway; keep it
+        # for Linux and let it fail quietly elsewhere.
+        stty time 0 2>/dev/null || true
         bind 'set keyseq-timeout 1'
 
         # Truncate directory to last 3 components
