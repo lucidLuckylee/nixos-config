@@ -4,7 +4,7 @@
 # MCP servers are merged into ~/.claude.json via an activation script, since
 # that file contains dynamic state that Nix shouldn't fully own.
 #
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 let
   npx = "${pkgs.nodejs}/bin/npx";
   uvx = "${pkgs.uv}/bin/uvx";
@@ -109,7 +109,7 @@ let
     # File system operations
     filesystem = {
       command = npx;
-      args = [ "-y" "@modelcontextprotocol/server-filesystem" "/home/lucy" ];
+      args = [ "-y" "@modelcontextprotocol/server-filesystem" config.home.homeDirectory ];
     };
     # HTTP fetch
     fetch = {
@@ -130,9 +130,18 @@ let
     };
 
     # Playwright: browser automation (navigate, click, screenshot, fill forms)
+    #
+    # Deliberately NOT `npx -y @playwright/mcp`. That always resolves to the
+    # latest release, whose bundled Playwright drifts from the browser
+    # revisions in pkgs.playwright-driver — at time of writing @playwright/mcp
+    # 0.0.79 wants Playwright 1.63.0-alpha while playwright-driver ships
+    # 1.61.1, and the mismatch fails at launch with "Looks like Playwright was
+    # just installed or updated. Please run: npx playwright install".
+    # The nixpkgs package is version-locked to the driver and sets
+    # PLAYWRIGHT_BROWSERS_PATH itself.
     playwright = {
-      command = npx;
-      args = [ "-y" "@playwright/mcp" ];
+      command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
+      args = [];
     };
   };
 
