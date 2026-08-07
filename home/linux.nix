@@ -28,6 +28,18 @@ in {
     swayidle
     wl-clipboard
     remmina
+
+    # Deliberately not in ./shared.nix — these are the heavy packages the Mac
+    # was carrying without using, 8.8 GB of closure between them:
+    #   texliveFull  6.83 GB   documents are written on the NixOS machines
+    #   python3      1.45 GB   macOS ships /usr/bin/python3, and uv can fetch
+    #                          its own interpreters when a newer one is needed
+    #   devenv       0.52 GB   per-project dev shells are a NixOS workflow here
+    # The top-level scheme, not texlive.combined.scheme-full — the combined.*
+    # attributes are deprecated and go away in nixpkgs 27.05.
+    texliveFull
+    python3
+    devenv
   ];
 
   fonts.fontconfig.enable = true;

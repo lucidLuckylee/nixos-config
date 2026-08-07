@@ -51,7 +51,6 @@ in {
     jq
     tmux
     gh
-    python3
     blesh
     unzip
     wakeonlan
@@ -60,15 +59,10 @@ in {
     pv
     sox                 # Voice chat for claude-code
     uv                  # Python tool runner (shared by mcp.nix + telegram-claude.nix)
-    devenv
     ffmpeg
     claude-code
     rustToolchain
     nerd-fonts.dejavu-sans-mono
-    # ~2.2 GiB download, 4.9 GiB on disk. This is the top-level scheme, not
-    # texlive.combined.scheme-full — the combined.* attributes are deprecated
-    # and are being removed in nixpkgs 27.05.
-    texliveFull
     # Patched browsers for Playwright; also kept here as a gcroot so
     # nix-collect-garbage doesn't sweep them between home-manager switches.
     # Verified working on aarch64-darwin (ad-hoc signed arm64 bundles).
