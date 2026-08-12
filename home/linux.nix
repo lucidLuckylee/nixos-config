@@ -28,6 +28,8 @@ in {
     swayidle
     wl-clipboard
     remmina
+    gowall              # Recolour images/wallpapers to a palette
+    vscode
 
     # Deliberately not in ./shared.nix — these are the heavy packages the Mac
     # was carrying without using, 8.8 GB of closure between them:
@@ -139,7 +141,7 @@ in {
           xkb_model = "pc104";
         };
       };
-      output."*".bg = "${./wallpaper.jpg} fill";
+      output."*".bg = "${./wallpaper.png} fill";
       workspaceAutoBackAndForth = true;
       focus = {
         wrapping = "yes";
