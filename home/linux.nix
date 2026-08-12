@@ -29,6 +29,7 @@ in {
     wl-clipboard
     remmina
     gowall              # Recolour images/wallpapers to a palette
+    mpvpaper            # Animated wallpaper (see systemd.user.services below)
     vscode
 
     # Deliberately not in ./shared.nix — these are the heavy packages the Mac
@@ -111,6 +112,36 @@ in {
         resumeCommand = ''${pkgs.sway}/bin/swaymsg "output * power on"'';
       }
     ];
+  };
+
+  # Animated wallpaper.
+  #
+  # swaybg can only draw a still, so the sway config below keeps ./wallpaper.jpg
+  # as the background and mpvpaper layers the video over it. Frame 0 of the
+  # video is that same still, so the handover is invisible — and if this service
+  # ever fails to start, what is left on screen is the correct wallpaper rather
+  # than a black screen.
+  #
+  # -p pauses decoding whenever the wallpaper is fully covered, which is most of
+  # the time in practice. Running uncovered it costs ~5% of one core.
+  systemd.user.services.mpvpaper = {
+    Unit = {
+      Description = "Animated wallpaper";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = pkgs.lib.concatStringsSep " " [
+        "${pkgs.mpvpaper}/bin/mpvpaper"
+        "-p"
+        "-o '--loop-file=inf --no-audio --hwdec=auto --video-unscaled=no'"
+        "'*'"
+        "${./wallpaper-anim.mp4}"
+      ];
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 
   # USB auto-mounting
