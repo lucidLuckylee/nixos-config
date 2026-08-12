@@ -11,6 +11,13 @@ let
   opacity = theme.opacity;
   opacity_alpha_hex = theme.opacity_alpha_hex;
   mod = "Mod4";
+
+  # The animated wallpaper deliberately lives outside the flake. It is a large
+  # binary that would bloat every clone, and it composites third-party footage
+  # whose licence permits derivative works but not redistribution of the source.
+  # Machines that do not have the file simply keep the still — see the
+  # ConditionPathExists on the service below.
+  animatedWallpaper = "${config.xdg.dataHome}/wallpaper/animated.mp4";
 in {
   imports = [
     ./telegram-claude.nix
@@ -118,9 +125,12 @@ in {
   #
   # swaybg can only draw a still, so the sway config below keeps ./wallpaper.jpg
   # as the background and mpvpaper layers the video over it. Frame 0 of the
-  # video is that same still, so the handover is invisible — and if this service
-  # ever fails to start, what is left on screen is the correct wallpaper rather
-  # than a black screen.
+  # video is that same still, so the handover is invisible.
+  #
+  # ConditionPathExists is what makes this safe to define for every Linux
+  # machine: where the video is absent the unit is skipped rather than failed,
+  # and the still wallpaper is simply what stays on screen. The same holds if
+  # mpvpaper dies — the background underneath it is already correct.
   #
   # -p pauses decoding whenever the wallpaper is fully covered, which is most of
   # the time in practice. Running uncovered it costs ~5% of one core.
@@ -129,6 +139,7 @@ in {
       Description = "Animated wallpaper";
       PartOf = [ "graphical-session.target" ];
       After = [ "graphical-session.target" ];
+      ConditionPathExists = animatedWallpaper;
     };
     Service = {
       ExecStart = pkgs.lib.concatStringsSep " " [
@@ -136,7 +147,7 @@ in {
         "-p"
         "-o '--loop-file=inf --no-audio --hwdec=auto --video-unscaled=no'"
         "'*'"
-        "${./wallpaper-anim.mp4}"
+        animatedWallpaper
       ];
       Restart = "on-failure";
       RestartSec = 5;
