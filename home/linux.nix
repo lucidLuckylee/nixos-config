@@ -141,7 +141,7 @@ in {
           xkb_model = "pc104";
         };
       };
-      output."*".bg = "${./wallpaper.png} fill";
+      output."*".bg = "${./wallpaper.jpg} fill";
       workspaceAutoBackAndForth = true;
       focus = {
         wrapping = "yes";
