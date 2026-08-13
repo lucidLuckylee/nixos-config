@@ -8,9 +8,13 @@
 let
   theme = import ./colors.nix;
   colors = theme.colors;
+  accent = theme.accent;
   opacity = theme.opacity;
   opacity_alpha_hex = theme.opacity_alpha_hex;
   mod = "Mod4";
+
+  # wmenu takes colours as bare RRGGBB[AA], with no leading '#'.
+  hex = pkgs.lib.removePrefix "#";
 
   # The animated wallpaper deliberately lives outside the flake. It is a large
   # binary that would bloat every clone, and it composites third-party footage
@@ -21,6 +25,10 @@ let
 in {
   imports = [
     ./telegram-claude.nix
+    ./firefox.nix
+    ./telegram-theme.nix
+    ./gtk.nix
+    ./tg.nix
   ];
 
   # Symlink ~/Usb to USB mount location
@@ -28,7 +36,6 @@ in {
 
   home.packages = with pkgs; [
     bluez
-    firefox
     gcc
     telegram-desktop
     discord
@@ -58,7 +65,7 @@ in {
     update = "sudo nixos-rebuild switch --flake /home/lucy/NixOS";
     cleanup = "sudo nix-collect-garbage -d; sudo nixos-rebuild boot --flake /home/lucy/NixOS";
     wake-mac = "wakeonlan 1c:f6:4c:45:3a:91";
-    clone = "( { output=$(alacritty 2>&1) || echo '$output'; } & disown)";
+    clone = "( { output=$(ghostty 2>&1) || echo '$output'; } & disown)";
   };
 
   services.gpg-agent = {
@@ -74,15 +81,15 @@ in {
     general = {
       colors = true;
       color_good = colors.foreground;
-      color_degraded = colors.normal.yellow;
-      color_bad = colors.normal.red;
+      color_degraded = accent.warm;
+      color_bad = colors.bright.red;
       interval = 1;
     };
     modules = {
     "wireless _first_" = {
       position = 0;
       settings = {
-        color_good = colors.normal.green;
+        color_good = accent.primary;
         format_up = "%essid%quality %bitrate 󱚽 ";
         format_down = "󰖪 ";
         format_bitrate = "%g%cb/s";
@@ -168,8 +175,16 @@ in {
     enable = true;
     config = {
       modifier = mod;
-      terminal = "alacritty";
-      menu = "wmenu-run";
+      terminal = "ghostty";
+      menu = pkgs.lib.concatStringsSep " " [
+        "wmenu-run"
+        "-N ${hex colors.background}${opacity_alpha_hex}"
+        "-n ${hex colors.foreground}"
+        "-M ${hex accent.surface}"
+        "-m ${hex accent.primary}"
+        "-S ${hex accent.primary}"
+        "-s ${hex colors.background}"
+      ];
       input = {
         "*" = {
           dwt = "enabled";
@@ -220,42 +235,44 @@ in {
           "${mod}+Shift+m" = ''exec systemctl --user stop swayidle.service; mode "always-on"'';
         }
       );
+      # Only the focused window gets the neon; everything else recedes into the
+      # dim slate so a single cyan edge marks focus across both monitors.
       colors = {
         background = colors.background;
         focused = {
-          border      = colors.bright.red;
-          background  = colors.normal.black;
+          border      = accent.primary;
+          background  = accent.surface;
           text        = colors.bright.white;
-          indicator   = colors.bright.white;
-          childBorder = colors.bright.red;
+          indicator   = accent.primary;
+          childBorder = accent.primary;
         };
         focusedInactive = {
-          border      = colors.normal.black;
-          background  = colors.normal.black;
-          text        = colors.bright.white;
-          indicator   = colors.normal.black;
-          childBorder = colors.normal.black;
+          border      = accent.dim;
+          background  = accent.surface;
+          text        = accent.muted;
+          indicator   = accent.dim;
+          childBorder = accent.dim;
         };
         unfocused = {
-          border      = colors.normal.black;
-          background  = colors.normal.black;
-          text        = colors.foreground;
-          indicator   = colors.normal.black;
-          childBorder = colors.normal.black;
+          border      = accent.dim;
+          background  = colors.background;
+          text        = accent.muted;
+          indicator   = accent.dim;
+          childBorder = accent.dim;
         };
         urgent = {
-          border      = colors.bright.yellow;
-          background  = colors.bright.yellow;
-          text        = colors.normal.black;
-          indicator   = colors.bright.yellow;
-          childBorder = colors.bright.yellow;
+          border      = accent.warm;
+          background  = accent.warm;
+          text        = colors.background;
+          indicator   = accent.warm;
+          childBorder = accent.warm;
         };
         placeholder = {
-          border      = colors.bright.black;
-          background  = colors.bright.black;
-          text        = colors.bright.white;
-          indicator   = colors.bright.black;
-          childBorder = colors.bright.black;
+          border      = accent.dim;
+          background  = accent.surface;
+          text        = accent.muted;
+          indicator   = accent.dim;
+          childBorder = accent.dim;
         };
       };
       bars = [{
@@ -264,27 +281,29 @@ in {
         trayOutput = "none";
         colors = {
           background = colors.background + opacity_alpha_hex;
-          statusline = colors.bright.white;
-          separator  = colors.normal.red;
+          statusline = colors.foreground;
+          separator  = accent.dim;
+          # Focused workspace is a filled neon chip — dark text on cyan, which
+          # is the one place the accent is bright enough to invert against.
           focusedWorkspace = {
-            border     = colors.bright.red;
-            background = colors.bright.red;
-            text       = colors.bright.white;
+            border     = accent.primary;
+            background = accent.primary;
+            text       = colors.background;
           };
           activeWorkspace = {
-            border     = colors.normal.red;
-            background = colors.normal.black;
-            text       = colors.bright.white;
+            border     = accent.dim;
+            background = accent.surface;
+            text       = accent.primary;
           };
           inactiveWorkspace = {
             border     = colors.background;
             background = colors.background;
-            text       = colors.foreground;
+            text       = accent.muted;
           };
           urgentWorkspace = {
-            border     = colors.bright.yellow;
-            background = colors.bright.yellow;
-            text       = colors.normal.black;
+            border     = accent.warm;
+            background = accent.warm;
+            text       = colors.background;
           };
         };
       }];

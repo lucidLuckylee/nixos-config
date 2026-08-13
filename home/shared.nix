@@ -9,9 +9,28 @@
 let
   theme = import ./colors.nix;
   colors = theme.colors;
+  accent = theme.accent;
   opacity = theme.opacity;
 
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+
+  # ── The raster dot tile ─────────────────────────────────────────────
+  # Generated rather than committed: it is a binary that would otherwise sit in
+  # the repo forever, and it is fully described by three numbers. Regenerating
+  # it is also how the dot colour stays tied to the palette above — change
+  # accent.primary and the tile follows on the next rebuild.
+  #
+  # One opaque pixel in an otherwise transparent square, tiled by the terminal.
+  # dotGap is the square's edge in physical pixels, so it is also the spacing
+  # between dots. It lives in ./colors.nix so Firefox's CSS raster uses the
+  # same pitch.
+  dotGap = theme.dotGap;
+  dotTile = pkgs.runCommand "raster-dot-${toString dotGap}.png"
+    { nativeBuildInputs = [ pkgs.imagemagick ]; }
+    ''
+      magick -size ${toString dotGap}x${toString dotGap} xc:none \
+        -fill '${accent.primary}' -draw 'point 0,0' PNG32:$out
+    '';
 
   # Stable Rust toolchain assembled from fenix components
   rustToolchain = pkgs.fenix.combine (with pkgs.fenix.stable; [
@@ -125,7 +144,21 @@ in {
 
         # Vi mode settings
         set -o vi
-        ble-bind -m auto_complete -f 'C-@' auto_complete/insert
+        # Ctrl+Space, spelled three ways on purpose.
+        #
+        # Which one the terminal actually sends depends on its keyboard
+        # protocol. A traditional terminal sends NUL (0x00), which arrives as
+        # 'C-@' — that is all Alacritty ever did, so a single binding was enough.
+        # Ghostty negotiates the Kitty keyboard protocol with ble.sh, and under
+        # that protocol Ctrl+Space is reported distinctly as CSI 32;5u, which
+        # ble.sh names 'C-SP'. The 'C-@' binding simply never matched there.
+        #
+        # ble.sh's own safe keymap binds all three names to set-mark for this
+        # exact reason; following the same pattern keeps the completion key
+        # working whichever terminal is in front of it.
+        ble-bind -m auto_complete -f 'C-@'  auto_complete/insert
+        ble-bind -m auto_complete -f 'C-SP' auto_complete/insert
+        ble-bind -m auto_complete -f 'NUL'  auto_complete/insert
 
         # Cursor styles: underline for normal, beam for insert (no blinking)
         ble-bind -m vi_nmap --cursor 4   # steady underline
@@ -293,6 +326,102 @@ in {
         normal = colors.normal;
         bright = colors.bright;
       };
+    };
+  };
+
+  # ── Ghostty ───────────────────────────────────────────────────────────
+  # The primary terminal. Alacritty above is kept configured as a fallback —
+  # it is still what the Mac's Homebrew cask installs, and keeping its config
+  # costs nothing but leaves a working terminal if a Ghostty release misbehaves.
+  #
+  # Ghostty is here rather than in ./linux.nix because the config genuinely is
+  # cross-platform: home-manager writes it to $XDG_CONFIG_HOME/ghostty/config,
+  # which Ghostty reads on macOS too. Only the package differs — nixpkgs builds
+  # `ghostty` from source for Linux only, and ships the notarised macOS app as
+  # `ghostty-bin`. Both are 1.3.1.
+  #
+  # The module runs `ghostty +validate-config` at build time, so a typo in the
+  # settings below fails the rebuild rather than dropping into a default-looking
+  # terminal at launch.
+  programs.ghostty = {
+    enable = true;
+    package = if isDarwin then pkgs.ghostty-bin else pkgs.ghostty;
+
+    # ── Off, and it has to be off in two places ───────────────────────
+    # Ghostty's bash integration sources bash-preexec.sh, wraps PS1 in OSC 133
+    # markers and appends its own hook to PROMPT_COMMAND. ble.sh replaces bash's
+    # line editor wholesale and owns all three of those; upstream ble.sh
+    # documents bash-preexec as incompatible for exactly this reason.
+    #
+    # The collision was not subtle: home-manager puts the integration in
+    # programs.bash.initExtra, which runs *after* bashrcExtra has already called
+    # ble-attach, so it rewrote the prompt out from under a line editor that had
+    # taken ownership of it — which is where the two stray lines at every new
+    # terminal came from.
+    #
+    # enableBashIntegration alone is not enough. Ghostty's own default for
+    # shell-integration is `detect`, so it injects the same script itself
+    # regardless of what home-manager writes into .bashrc. Both have to say no.
+    #
+    # Nothing of value is lost here: ble.sh already draws the prompt, sets the
+    # cursor shape per vi mode (see ble-bind --cursor below), and handles resize
+    # redrawing. What goes away is Ghostty's jump-to-prompt keybinding.
+    enableBashIntegration = false;
+
+    settings = {
+      shell-integration = "none";
+
+      font-family = if isDarwin then "DejaVuSansM Nerd Font Mono" else "DejaVu Sans Mono";
+      font-size = 12;
+
+      background = colors.background;
+      foreground = colors.foreground;
+      background-opacity = opacity;
+
+      cursor-color = accent.primary;
+      selection-background = accent.dim;
+      selection-foreground = colors.bright.white;
+
+      # ── The raster ────────────────────────────────────────────────
+      # fit=none keeps the tile at its native 8x8 instead of scaling it to the
+      # window, and repeat tiles it across the surface — together they are what
+      # turns a one-pixel image into a dot grid. Without fit=none the default
+      # (contain) would stretch that single pixel over the whole terminal.
+      #
+      # The opacity is deliberately low. At full strength an 8px grid of cyan
+      # reads as noise behind text; at 0.18 it sits underneath as texture.
+      background-image = "${dotTile}";
+      background-image-repeat = true;
+      background-image-fit = "none";
+      background-image-opacity = 0.18;
+
+      window-padding-x = 8;
+      window-padding-y = 4;
+
+      # Sway draws the border and there are no server-side decorations worth
+      # having under a tiling WM; on macOS the native titlebar is still wanted.
+      window-decoration = isDarwin;
+
+      confirm-close-surface = false;
+
+      palette = [
+        "0=${colors.normal.black}"
+        "1=${colors.normal.red}"
+        "2=${colors.normal.green}"
+        "3=${colors.normal.yellow}"
+        "4=${colors.normal.blue}"
+        "5=${colors.normal.magenta}"
+        "6=${colors.normal.cyan}"
+        "7=${colors.normal.white}"
+        "8=${colors.bright.black}"
+        "9=${colors.bright.red}"
+        "10=${colors.bright.green}"
+        "11=${colors.bright.yellow}"
+        "12=${colors.bright.blue}"
+        "13=${colors.bright.magenta}"
+        "14=${colors.bright.cyan}"
+        "15=${colors.bright.white}"
+      ];
     };
   };
 

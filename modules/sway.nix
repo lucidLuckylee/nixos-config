@@ -37,6 +37,16 @@ in {
     };
   };
 
+  # Nothing more is needed for the file chooser: programs.sway already pulls in
+  # xdg-desktop-portal-gtk (wayland-session.nix, enableGtkPortal defaults true)
+  # and already routes every interface to it except ScreenCast/Screenshot, which
+  # stay on wlr. An explicit block here only conflicted with that.
+  #
+  # The pickers looked different despite that because neither app was asking the
+  # portal: Firefox's widget.use-xdg-desktop-portal.file-picker defaults to
+  # "auto", which means sandbox-only, and Qt needs to be told separately. Both
+  # are handled in ../home (./firefox.nix and ./gtk.nix).
+
   # Required to start up sway
   services.seatd.enable = true;
 
