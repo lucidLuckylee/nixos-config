@@ -21,6 +21,51 @@ let
   colors = theme.colors;
   accent = theme.accent;
 
+  # ── Viewing an image without leaving the terminal ───────────────────
+  # chafa renders into the terminal itself, so a photo appears in the same
+  # rastered surface as everything else rather than throwing a separate window
+  # onto another workspace.
+  #
+  # The output format is deliberately not pinned. chafa probes the terminal and
+  # picks the best it answers to — the kitty graphics protocol gives true pixels
+  # where it is supported, and it falls back to character art where it is not.
+  # Hardcoding `-f kitty` would look sharper right up until something does not
+  # implement it.
+  #
+  # The pause at the end is the whole reason this is a script. tg runs the
+  # handler inside `suspend()` and redraws its UI the moment the command exits,
+  # so a bare `chafa file` would paint the image and immediately erase it.
+  viewImage = pkgs.writeShellApplication {
+    name = "tg-view-image";
+    runtimeInputs = [ pkgs.chafa ];
+    text = ''
+      chafa --clear "$1"
+      printf '\n  \033[36m[ any key to return, o to open in imv ]\033[0m'
+      read -rsn1 key || key=""
+      printf '\n'
+      if [ "$key" = "o" ]; then
+        ${pkgs.imv}/bin/imv "$1" >/dev/null 2>&1 &
+      fi
+    '';
+  };
+
+  # tg looks files up by MIME type through mailcap. With no mailcap anywhere on
+  # the system, findmatch returns nothing and pressing `l` on an image silently
+  # does nothing at all — which is what "I can't see images" was.
+  mailcap = pkgs.writeText "tg-mailcap" ''
+    image/*; ${viewImage}/bin/tg-view-image %s; needsterminal
+    video/*; ${pkgs.mpv}/bin/mpv --loop-file=inf %s
+    audio/*; ${pkgs.mpv}/bin/mpv --no-video %s
+    application/pdf; ${pkgs.zathura}/bin/zathura %s
+    text/*; ''${PAGER:-less} %s; needsterminal
+    application/*; ${pkgs.xdg-utils}/bin/xdg-open %s
+  '';
+  # Note there is no `*/*` line. mailcap only wildcards the subtype — `type/*`
+  # matches, `*/*` is not a pattern the format has, and a line using it is
+  # parsed and then never matched. Verified: with `*/*` present,
+  # findmatch("application/zip") still returned no handler. `application/*` is
+  # what actually catches the zips and octet-streams.
+
   # ── The phone number ────────────────────────────────────────────────
   # tdlib needs it before login can start, and the library underneath prompts
   # for the SMS code but never for the number itself.
@@ -84,11 +129,24 @@ let
 
     VIEW_TEXT_CMD = "less"
     DOWNLOAD_DIR = os.path.expanduser("~/Downloads/")
+
+    # Without this tg calls mailcap.getcaps(), which scans ~/.mailcap and
+    # /etc/mailcap — neither of which exists here, so every image resolved to
+    # no handler and opening one did nothing.
+    MAILCAP_FILE = "${mailcap}"
   '';
 in {
   home.packages = with pkgs; [
     tg
-    fzf   # tg's file picker, and generally useful at the prompt
+    fzf     # tg's file picker, and generally useful at the prompt
+
+    # The mailcap handlers above reference these by store path, so tg works
+    # whether or not they are on PATH. They are installed anyway because
+    # wanting an image viewer outside tg is the normal case, not the exception.
+    chafa   # inline images in the terminal
+    imv     # the windowed viewer, for when the inline one is not enough
+    mpv     # video and audio
+    zathura # pdf
   ];
 
   xdg.configFile."tg/conf.py".text = configText;
