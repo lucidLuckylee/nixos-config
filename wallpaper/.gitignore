@@ -7,8 +7,9 @@ hq*.mp4
 # HuggingFace model cache (~3.7 GB) — only depth2.py and sam_masks.py need it,
 # and sam/ is committed so neither has to run.
 hf/
-# Third-party footage. Nothing reads it any more; the drops are procedural now.
+# Third-party footage, and the screen program baked from it by screen.py.
 src/
+screen/
 # Generated from graph.py on every render.
 graph5.gen.txt
 # Scratch

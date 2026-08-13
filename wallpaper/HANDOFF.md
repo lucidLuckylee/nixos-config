@@ -23,45 +23,74 @@ layer map. That saves a ~3.7 GB model download.
 
 ## Rebuild, in order
 
-    ./py.sh steam3.py          # ~75 s   -> steam/   (360 frames)
-    ./py.sh drip.py            # ~45 s   -> drip/    (1440 frames)
+    ./py.sh steam3.py          # ~70 s   -> steam/   (360 frames)
+    ./py.sh drip.py            # ~35 s   -> drip/    (1440 frames)
+    ./py.sh screen.py CLIP...  # ~3 min  -> screen/  (optional, see below)
     ./py.sh graph.py           #  instant -> graph5.gen.txt
     OUT=hq.mp4 ./render5.sh    # the long one, see below
     ./verify.sh hq.mp4
     ./install.sh hq.mp4
 
-`steam/` and `drip/` are gitignored because they are ~24 MB of PNGs that
-regenerate in two minutes.
+`steam/`, `drip/` and `screen/` are gitignored — the first two are ~24 MB of
+PNGs that regenerate in two minutes, and the third is built from clips that are
+not ours to commit.
 
 Everything else — the plate, masks, rain plates, drop maps, fog, flash, LEDs —
-is committed, so a first render works straight after clone.
+is committed, so a first render works straight after clone. Without `screen/`
+the monitor falls back to the bar visualiser rather than failing.
+
+`render5.sh` refuses to run if `graph5.gen.txt` is older than `graph.py` or
+`screen/meta.sh`. A stale graph is silently WRONG rather than broken — the input
+indices still resolve, they just resolve to the wrong images — and you would
+find out an hour later.
 
 ## Render cost, and what actually helps
 
-Measured on a Ryzen 5 5500U (6c/12t): **20 s of output took 358 s wall and
-1550 s CPU**, i.e. the pipeline sustains about **4.3 cores**. Full 288 s loop
-≈ **86 minutes**, ~103 MB.
+Measured on a Ryzen 5 3600 (6c/12t), 6 s of output:
 
-It is already multi-threaded, so the wins available are:
+    filtergraph only (-f null)   66.3 s wall, 389 s CPU
+    + x264 -preset medium        67.4 s
+    + x264 -preset slow          69.8 s
 
-- **More/faster CPU cores.** The most reliable one. The filtergraph is a large
-  share of the cost and runs entirely on CPU.
-- **`CODEC_ARGS="$H264_FAST"`** — x264 `-preset medium` instead of `slow`.
-  Free, and visually indistinguishable at CRF 15 on this material.
-- **`CODEC_ARGS="$NVENC"`** — hands the encode to the GPU. Real, but bounded:
-  it only removes the encoder's share.
+Full 288 s loop ≈ **56 minutes**, ~100 MB. The pipeline sustains **5.9 cores**.
 
-A GPU cannot take the filtergraph. `maskedmerge`, `displace`, `blend`, and 60
-timed `overlay`s have no CUDA equivalents in ffmpeg, so those stay on the CPU
-whatever card is present. Do not expect the 90 minutes to become 10.
+**The encoder is 5% of that.** This kills the two obvious speedups:
+
+- **`CODEC_ARGS="$NVENC"`** — the GPU can only take the encode, because
+  `maskedmerge`, `displace`, `blend` and 60 timed `overlay`s have no CUDA
+  equivalents in ffmpeg. That caps it at 3.5 s in 70, so a GPU render is ~53
+  minutes instead of ~56. Not worth chasing, and definitely not worth rebooting
+  into a driver fix for. (If you try anyway: `nvidia-smi` reporting
+  "Driver/library version mismatch" means the loaded kernel module is older than
+  the userspace libs after a rebuild, and NVENC will fail with
+  `CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE`.)
+- **`CODEC_ARGS="$H264_FAST"`** — saves 2.4 s in 70. `-preset slow` is the only
+  one of these knobs that changes the output, so keep it.
+
+What is actually left on the table is the other 6 cores. Harvesting them means
+rendering segments of the timeline in parallel processes, and every scrolling
+layer's phase would have to be re-derived per segment — steam, drip and the
+screen programme all loop at their own rates. A wrong offset there does not
+fail, it just makes the loop jump. Not attempted.
+
+If you want a fast preview rather than a final, render a slice — see below.
 
 If you want a fast preview rather than a final, render a slice:
 
     OUT=/tmp/peek.mp4 FFMPEG_EXTRA="-t 30" ./render5.sh
 
+(`FFMPEG_EXTRA` is appended after the output options, so a second `-t` there
+overrides the built-in `-t 288`.)
+
 Note that single-frame sampling is *not* cheap: ffmpeg processes the timeline
 up to the moment you ask for, so grabbing t=250 costs nearly a whole render.
 Render once and pull frames out of the mp4 with `-ss` instead.
+
+If what you are checking is the screen, do not render at all — composite one
+frame of `screen/screen.mkv` onto `v2.png` through `mask_screen.png` and look at
+that. It costs a second, shows the grade exactly as it will land, and is the
+only reason the screen took four passes to tune instead of four hours. The
+command is in README under "The screen".
 
 ## Installing
 
@@ -90,11 +119,35 @@ The loop is 288 s and that number is not free. The rain plates wrap over a
 seam. Scroll speeds are constrained too: `vy` a multiple of `1200/T`, `vx` of
 `512/T`, and `vx/vy` held at 0.2133 to match the 12° streak tilt.
 
+## The screen
+
+Done, via `screen.py` — see README for why it is shaped the way it is. The short
+version:
+
+    ./py.sh screen.py src/ants.mp4 src/penguin.mp4@0:43-1:45 src/surf.mp4 \
+                      src/vinland.mp4
+
+builds a 288 s programme: each clip in turn with 12 s of dark panel between
+them, dissolves at every seam, baked to `screen/screen.mkv` at 111x56 with the
+monochrome-cyan, scanline and bloom treatment already applied. Clips are laid
+down in the order given. `clip.mp4@0:43-1:45` takes an excerpt.
+
+The programme length must divide 288, which `screen.py` enforces. Adding clips
+does not require a longer wallpaper loop — they share the programme.
+
+To change what is on the screen, re-run `screen.py`, then `graph.py`, then
+render. To take the screen out entirely, `rm -rf screen/`; the render falls back
+to the bar visualiser on its own.
+
 ## Known-unfinished
 
-- **The screen still shows the bar visualiser.** The intent is a video looped
-  into the panel with a cyan tint. The screen is **101 x 46 px**, 2.2:1 — put a
-  clip you have the rights to in `src/` and wire it in near the `mask_screen`
-  section of `graph.py`. Content matters far more than resolution at that size.
 - The fog phase is 48 s of near-static haze and may want shortening.
-- `src/` and `hf/` are gitignored; nothing in the render reads `src/` any more.
+- Anything faded for a `blend=all_mode=screen` layer must go to BLACK, and `eq`
+  cannot do that — its contrast pivots about mid-grey, so a ramp to zero paints
+  a solid mid-grey rectangle. This bit the washing-machine steam bursts for
+  three renders. Use `fade` (no `alpha=1`). README has the measurements.
+- The surf clip is a night scene and stays dark even after auto-levels. It
+  reads as a screen showing something dark, which is correct, but it is the
+  least legible of the four at 111x56.
+- `src/` and `hf/` are gitignored. `src/` is read again now — `screen.py` takes
+  its clips from there — but nothing in the *render* reads it directly.

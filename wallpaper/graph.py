@@ -26,15 +26,30 @@ Every overlay carries BOTH a fade (smooth alpha) and an enable (so ffmpeg skips
 the filter entirely outside its window, instead of compositing a transparent
 frame 17280 times).
 """
+import os
+
 T = 288.0
 
 # --- inputs -----------------------------------------------------------------
+# `screen` is LAST and conditional. render5.sh only passes it when screen.py has
+# baked a program, and appending keeps every other index fixed whether it is
+# there or not — renumbering an input list that two files have to agree on is
+# exactly the bug this generator exists to prevent.
+SCREEN = os.path.exists('screen/meta.sh')
+
 I = {name: i for i, name in enumerate([
     'plate', 'mask_cyan', 'mask_amber', 'glow', 'blob1', 'blob2', 'mask_port',
     'rain_far', 'rain_mid', 'rain_near', 'rain_sprinkle', 'rain_heavy',
     'mask_screen', 'bar', 'steam', 'drops_x', 'drops_y', 'drops_spec',
     'drip', 'drip_front', 'fog', 'flash', 'led_cyan', 'led_red', 'led_green',
+    'screen',
 ])}
+
+# Where the baked program is laid down. This is the full support of
+# mask_screen.png — every pixel where the mask is nonzero — not the 101x46
+# core, because the mask's soft border can only fade the screen out if there is
+# screen content underneath it to fade.
+SCREEN_X, SCREEN_Y = 1145, 590
 
 # --- weather timeline -------------------------------------------------------
 # (name, base x, vy px/s, vx px/s, [(in_start, in_dur, out_start, out_dur), ...])
@@ -62,6 +77,7 @@ CONDENSATION = (140, 20, 258, 14)
 # Short cleaning bursts roughly once a minute; the indicator says what it is
 # doing. Green blinking at the end of the cycle = finished.
 BURSTS = [(55, 10), (130, 10), (205, 10)]
+BURST_IN, BURST_OUT = 2.0, 2.5    # must sum to less than the burst duration
 FINISHED = (250, 288)
 DRUM_TURNS = 48                   # whole turns over the loop, so it is seamless
 
@@ -175,16 +191,29 @@ add("[dropped0]format=gbrp[droppedD];")
 add("[keepC][droppedD][mp2]maskedmerge[r2];")
 
 # --- the screen -------------------------------------------------------------
+# Either the baked program from screen.py, or the bar visualiser it replaced.
+# The fallback is not politeness: screen/ is gitignored because it is built from
+# clips that are not ours to commit, so a fresh clone has to render without it.
 add("[r2]format=rgba,split=2[keepB][wav];")
-add(f"[{I['bar']}:v]format=rgba,split=7[q1][q2][q3][q4][q5][q6][q7];")
-prev = 'wav'
-for i, (x, k, ph) in enumerate([(1152, 5, 0.0), (1166, 7, 0.9), (1180, 11, 1.8),
-                                (1194, 13, 2.7), (1208, 17, 3.6), (1222, 19, 4.5),
-                                (1236, 23, 5.4)]):
-    lbl = f"w{i + 1}"
-    add(f"[{prev}][q{i + 1}]overlay=x={x}:"
-        f"y='640-(4+38*(0.5+0.5*sin(2*PI*{k}*t/24+{ph})))'[{lbl}];")
-    prev = lbl
+if SCREEN:
+    # Mains flicker. Both periods divide T, which every time-varying expression
+    # in this file has to — a 1.1s period would beat against the 288s loop and
+    # put a brightness step at the seam.
+    add(f"[{I['screen']}:v]format=rgba,"
+        f"eq=brightness='0.014*sin(2*PI*t/3)+0.008*sin(2*PI*t/1.2)'"
+        f":eval=frame[scrn];")
+    add(f"[wav][scrn]overlay=x={SCREEN_X}:y={SCREEN_Y}[w1];")
+    prev = 'w1'
+else:
+    add(f"[{I['bar']}:v]format=rgba,split=7[q1][q2][q3][q4][q5][q6][q7];")
+    prev = 'wav'
+    for i, (x, k, ph) in enumerate([(1152, 5, 0.0), (1166, 7, 0.9), (1180, 11, 1.8),
+                                    (1194, 13, 2.7), (1208, 17, 3.6), (1222, 19, 4.5),
+                                    (1236, 23, 5.4)]):
+        lbl = f"w{i + 1}"
+        add(f"[{prev}][q{i + 1}]overlay=x={x}:"
+            f"y='640-(4+38*(0.5+0.5*sin(2*PI*{k}*t/24+{ph})))'[{lbl}];")
+        prev = lbl
 add("[keepB]format=gbrp[kB];")
 add(f"[{prev}]format=gbrp[wD];[{I['mask_screen']}:v]format=gbrp[ms];")
 add("[kB][wD][ms]maskedmerge[fin];")
@@ -196,10 +225,23 @@ add("[sB0]scale=110:170,pad=1920:1080:920:390:color=black[stB];")
 add("[fin][stB]blend=all_mode=screen[sm0];")
 prev = 'sm0'
 for i, (s, d) in enumerate(BURSTS):
-    # Screen-blending treats black as identity, so a burst is faded by scaling
-    # the plume's own brightness rather than by an alpha channel.
+    # Screen-blending treats black as identity, so a burst is faded by taking
+    # the plume's own brightness to black rather than by an alpha channel.
+    #
+    # This was `eq=contrast=<ramp>` and that is a TRAP: eq's contrast pivots
+    # about mid-grey, v = contrast*(v-0.5)+0.5, so contrast=0 does not mean
+    # "gone", it means "every pixel is 128". The plate's own mean is 6, so the
+    # supposedly faded-out plume came out TWENTY-ONE TIMES BRIGHTER than the
+    # plume itself, and screen-blending a mid-grey rectangle painted a bright
+    # 88x136 box over the machine at both ends of every burst.
+    #
+    # fade without alpha=1 fades toward black, which is exactly the identity
+    # screen blending wants, and it is a multiply rather than a per-frame
+    # expression. The windows must still land inside the blend's `enable` or
+    # the plume pops in at full strength.
     add(f"[sA{i}]scale=88:136,"
-        f"eq=contrast='min(clip((t-{s})/2.0,0,1),clip(({s + d}-t)/2.5,0,1))':eval=frame,"
+        f"fade=t=in:st={s}:d={BURST_IN},"
+        f"fade=t=out:st={s + d - BURST_OUT}:d={BURST_OUT},"
         f"pad=1920:1080:1580:760:color=black[stA{i}];")
     add(f"[{prev}][stA{i}]blend=all_mode=screen:"
         f"enable='between(t,{s},{s + d})'[sm{i + 1}];")
@@ -213,4 +255,5 @@ add("[drp][dfront]overlay=x=928:y=340[drf];")
 add("[drf]format=yuv420p[out]")
 
 open('graph5.gen.txt', 'w').write("\n".join(L) + "\n")
-print(f"{len(L)} filter lines, {n} rain/fog/flash overlays, loop {T:.0f}s")
+print(f"{len(L)} filter lines, {n} rain/fog/flash overlays, loop {T:.0f}s, "
+      f"screen: {'screen/screen.mkv' if SCREEN else 'bar visualiser'}")

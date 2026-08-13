@@ -12,9 +12,6 @@ let
   # wmenu takes colours as bare RRGGBB[AA], with no leading '#'.
   hex = pkgs.lib.removePrefix "#";
 
-  # Keep the large video outside the flake. The service skips it when absent.
-  animatedWallpaper = "${config.xdg.dataHome}/wallpaper/animated.mp4";
-
   # Pause swayidle while manually blanked, then restore its previous state.
   # This prevents mouse motion from undoing blanking or cancelling always-on.
   # The .dpms fallback supports older Sway versions.
@@ -48,6 +45,7 @@ in {
     ./gtk.nix
     ./tg.nix
     ./quickshell.nix
+    ./wallpaper.nix
   ];
 
   # Symlink ~/Usb to USB mount location
@@ -62,7 +60,7 @@ in {
     wl-clipboard
     remmina
     gowall              # Recolour images/wallpapers to a palette
-    mpvpaper            # Animated wallpaper (see systemd.user.services below)
+    mpvpaper            # Animated wallpaper (see ./wallpaper.nix)
     vscode
 
     # Large development packages used only on the Linux hosts.
@@ -119,29 +117,7 @@ in {
     ];
   };
 
-  # Keep the still wallpaper underneath as a fallback. The bottom layer stays
-  # above swaybg across reloads; -p pauses decoding when frame callbacks stop.
-  systemd.user.services.mpvpaper = {
-    Unit = {
-      Description = "Animated wallpaper";
-      PartOf = [ "graphical-session.target" ];
-      After = [ "graphical-session.target" ];
-      ConditionPathExists = animatedWallpaper;
-    };
-    Service = {
-      ExecStart = pkgs.lib.concatStringsSep " " [
-        "${pkgs.mpvpaper}/bin/mpvpaper"
-        "-p"
-        "-l bottom"
-        "-o '--loop-file=inf --no-audio --hwdec=auto --video-unscaled=no --really-quiet'"
-        "'*'"
-        animatedWallpaper
-      ];
-      Restart = "on-failure";
-      RestartSec = 5;
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
+  # The animated wallpaper and its mpvpaper service live in ./wallpaper.nix.
 
   # USB auto-mounting
   services.udiskie = {
@@ -179,6 +155,8 @@ in {
           xkb_model = "pc104";
         };
       };
+      # Default background for every output. Machines with a screen of a
+      # different shape override it per output — see home/desktop.nix.
       output."*".bg = "${./wallpaper.jpg} fill";
       workspaceAutoBackAndForth = true;
       focus = {

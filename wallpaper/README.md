@@ -30,12 +30,49 @@ deleted.) Machines without the mp4 fall back to the still, via
       +-- steam3.py       -> steam/steam_%03d.png    (particle plume)
       +-- drops.py        -> drops_x/y.png, drops_spec.png
       +-- drip.py         -> drip/drip_%03d.png
+      +-- screen.py       -> screen/screen.mkv    (the monitor's programme)
       |
       +-- render5.sh      ffmpeg, graph5.gen.txt   -> hqN.mp4
       +-- install.sh      atomic install + service restart
 
 `py.sh` runs a python with numpy/pillow/scipy; `pytorch.sh` adds torch and
 transformers (only depth2.py and sam_masks.py need it).
+
+## The still wallpapers
+
+`grade.sh` makes the stills that sway draws as each output's background —
+`home/wallpaper.jpg` for the 16:9 screen and `home/wallpaper2.jpg` for the 16:10
+one. It is the recipe that used to live only in commit db6d895's message:
+
+    ./grade.sh ~/Downloads/art.jpg 1680x1050 ../home/wallpaper2.jpg
+
+ESRGAN x4 then downsample to the target, sigmoidal contrast, +18 saturation,
+30% blend with the same image mapped to `home/colors.nix`. The palette is read
+out of colors.nix rather than transcribed, so it cannot drift from the theme.
+
+Two things worth knowing before reaching for something simpler:
+
+**The x4-then-down detour earns its keep.** These sources are ~1MP against a
+1.7MP screen, so the naive move is a 1.57x Lanczos resize. Side by side at 1:1
+that is visibly mush — brush edges smear and the small painted posters stop
+being legible — while the ESRGAN path keeps them crisp without plasticising the
+brushwork. The downsample is what removes the smearing the network invents.
+
+**`gowall upscale` is not the upscaler.** It wants to fetch and set up its own
+realesrgan binary, which on NixOS is a dynamically linked blob that will not
+run; it fails at setup, and before that it exited 127. nixpkgs'
+`realesrgan-ncnn-vulkan` is what works, and `gowall` is used only for the grade.
+
+ESRGAN runs on Vulkan, so check what it is actually running on:
+
+    nix shell nixpkgs#vulkan-tools -c vulkaninfo --summary | grep driverName
+
+If that says `llvmpipe` rather than your card, it is on the CPU and a 1MP image
+takes ~30 minutes instead of ~15 seconds. On this machine that happens when the
+NVIDIA kernel module and userspace libraries are out of step after a rebuild —
+the same mismatch that makes `nvidia-smi` report a version mismatch. A reboot
+fixes it. `UPSCALE=0` skips the upscale so the tonality, which is the part worth
+iterating on, can be re-run in seconds against an already-upscaled image.
 
 ## Fixing the layer map by hand
 
@@ -135,6 +172,35 @@ the rain-on-glass clip was: it does not loop, it arrives at a fixed resolution,
 and it carries licence conditions. Watch the fan-out — the first pass had 1.25x
 horizontal shear and spread to a cone that clipped the top of the frame.
 
+### eq's contrast pivots about mid-grey, not black
+
+The plume is composited with `blend=all_mode=screen`, for which black is the
+identity, so a burst is faded by taking the plate's brightness to black. The
+first version did that with `eq=contrast=<ramp>` and it painted a bright 88x136
+box over the machine at both ends of every burst.
+
+eq's contrast is `v = contrast*(v - 0.5) + 0.5`. It pivots about mid-grey, so
+contrast=0 does not mean "gone", it means "every pixel is 128" — and the steam
+plate's own mean is 6. Fading OUT made the plume twenty-one times BRIGHTER than
+the plume, which is why the artefact was a solid rectangle rather than a
+too-visible plume, and why it appeared at both ends rather than one.
+
+`fade` without `alpha=1` fades toward black, which is exactly what screen
+blending wants, and it is a multiply rather than a per-frame expression:
+
+    fade=t=in:st=<start>:d=2.0,fade=t=out:st=<end-2.5>:d=2.5
+
+Measured in the burst rectangle, with t just before the burst as ground truth:
+
+    t=0.9  before      old  40.8   new  40.8
+    t=1.0  burst start old 149.8   new  40.8
+    t=5.0  full plume  old  46.1   new  46.2
+    t=10.9 burst end   old 144.9   new  41.1
+
+If you ever need a genuine per-frame *multiply* elsewhere, note that neither
+`eq` nor `colorchannelmixer` will do it — `lut*` has no time variable, and `geq`
+does but costs an expression evaluation per pixel per channel.
+
 ## LEDs: tried and removed
 
 An auto-placer (`leds.py`, deleted) lit up the small bright specks already
@@ -198,6 +264,82 @@ drop flicker out just above the puddle.
 
 The original version fell 72px and stopped at y=458, which the layer map shows
 is mid-air — nothing is there at all.
+
+## The screen
+
+`screen.py` bakes a list of clips into `screen/screen.mkv`, which `render5.sh`
+lays down at 1145,590 and `mask_screen.png` cuts to shape. Both that script and
+`graph.py` key off `screen/meta.sh`, so deleting `screen/` falls the render back
+to the bar visualiser and a fresh clone still works — which it has to, because
+the clips are not ours to commit.
+
+    ./py.sh screen.py src/ants.mp4 src/penguin.mp4@0:43-1:45 src/surf.mp4 \
+                      src/vinland.mp4
+
+Three separate things had to be got right, and only the first is obvious.
+
+**The programme has to divide the loop.** The screen is one more periodic layer,
+so its length obeys the same rule as the rain: unless it divides 288 exactly the
+wallpaper seam lands mid-clip and the screen jump-cuts every 4:48. More clips do
+NOT mean a longer wallpaper loop — clips share the programme, the programme
+divides T. Raising T is a separate and much more expensive decision.
+
+Slots are max-min fair, not proportional. Proportional was the first version and
+it cut a deliberately chosen 62s excerpt down to 39s in order to give a
+four-minute filler montage more room; the montage is the thing with seconds to
+spare, so it is the thing that should give them up. Short clips now play in full
+and the longest one absorbs the remainder, which for these four means nothing is
+time-stretched at all.
+
+Gaps go BETWEEN the clips, not in one block. The monitor being idle between
+things is the point, and a dissolve up from dark gives each clip an unambiguous
+start — clip dissolving straight into clip reads as one continuous programme.
+The dark state is the plate's own pixels darkened, not black: an off panel is a
+mirror. At OFF_GAIN 0.20 it read as a hole cut in the wall, the same mistake the
+puddle started with. 0.48 against a plate at luma 211 reads as dark glass.
+
+**The grade is set against the plate, not judged on its own.** The panel around
+the screen has a median luma of 207 — a bright surround — and a screen graded to
+look good in isolation lands on it as a dark, saturated rectangle. What fixed it:
+
+- *Highlights desaturate toward white.* A linear luminance-to-cyan map holds
+  saturation constant all the way up, and full-saturation cyan is exactly what
+  does not belong here. Real phosphor washes out as it approaches its limit, so
+  highlights are pulled toward the panel's own pale cyan and only the midtones
+  stay fully tinted. This one change did most of the work.
+- *Per-clip auto-levels.* Clips arrive graded to their own taste, and a night
+  driving scene has no business being three stops under the one before it.
+  `normalize` at strength 0.75 over a 5s window. It is temporally stateful,
+  which is normally a hazard in a loop, but every clip begins and ends inside a
+  dissolve, so no frame has to match one graded in a different pass.
+- *Scanlines and a slight corner falloff.* At 56px tall the scanline is the only
+  spatial structure with room to be seen, and it is the strongest "this is a
+  display" cue available.
+
+Check it without rendering. Compositing one screen frame onto `v2.png` through
+the mask costs a second and shows exactly what the grade will look like in
+place, which matters because sampling t=250 from a real render costs most of an
+hour:
+
+    ffmpeg -ss 130 -i screen/screen.mkv -frames:v 1 -update 1 -y /tmp/s.png
+    ffmpeg -i v2.png -i /tmp/s.png -i mask_screen.png -filter_complex \
+      "[1:v]pad=1920:1080:1145:590[s0];[0:v]format=gbrp[bg];[s0]format=gbrp[s];
+       [2:v]format=gbrp[m];[bg][s][m]maskedmerge,crop=201:116:1100:565,
+       scale=iw*4:ih*4:flags=neighbor" -frames:v 1 -update 1 -y /tmp/ctx.png
+
+### geq defaults its missing planes to the first one you gave it
+
+`geq=lum='...'` does not leave chroma alone. Any plane expression you omit falls
+back to the first one supplied, so the luminance expression ran on cb and cr as
+well; chroma tracked luma and a monochrome ramp came out a hue sweep — green
+midtones, blue highlights. On 111x56 anime footage that is easy to blame on the
+source. On a synthetic 0-255 ramp it is unmissable, which is why the grade is
+worth testing on one:
+
+    ffmpeg -i ramp.png -vf "<the chain>" -update 1 -y /tmp/r.png
+
+The scanline, curvature, tint and highlight rolloff are one RGB geq now, with
+all three planes written out, so the trap is gone rather than worked around.
 
 ## Two things that bite
 
