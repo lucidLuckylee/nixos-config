@@ -22,6 +22,21 @@ in {
     distrobox
   ];
 
+  # Screen sharing (Firefox/Meet, Zoom, OBS) goes through the wlroots portal.
+  # It is already pulled in by programs.sway, but it ships a systemd unit whose
+  # PATH holds only coreutils/findutils/grep/sed/systemd — none of the output
+  # choosers it probes for (wmenu, wofi, rofi, bemenu, fuzzel, slurp). Every
+  # request therefore ended in "wlroots: no output found": the browser's own
+  # permission prompt succeeded, then no stream ever arrived. Naming slurp by
+  # absolute store path sidesteps the PATH entirely — click an output to share.
+  xdg.portal.wlr = {
+    enable = true;
+    settings.screencast = {
+      chooser_type = "simple";
+      chooser_cmd = "${pkgs.slurp}/bin/slurp -f %o -or";
+    };
+  };
+
   # Required to start up sway
   services.seatd.enable = true;
 

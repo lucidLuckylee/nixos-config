@@ -300,7 +300,11 @@ in {
         }
       ];
 
-      modes = {
+      # mkOptionDefault so this merges with home-manager's default modes rather
+      # than replacing them — a plain assignment here drops the built-in
+      # "resize" mode, leaving mod+r (still bound above) to enter a mode with no
+      # bindings at all, not even Escape back to default.
+      modes = pkgs.lib.mkOptionDefault {
         "always-on" = {
           "${mod}+Shift+m" = ''exec systemctl --user start swayidle.service; mode "default"'';
         };
