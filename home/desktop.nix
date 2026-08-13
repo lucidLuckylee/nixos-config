@@ -7,11 +7,11 @@
   wayland.windowManager.sway.config.output = {
     "DP-1" = {
       mode = "1920x1080@144.001Hz";
-      pos = "1680 0";
+      pos = "0 0";
     };
     "DVI-D-1" = {
       mode = "1680x1050@120Hz";
-      pos = "0 0";
+      pos = "1920 0";
     };
   };
 }
