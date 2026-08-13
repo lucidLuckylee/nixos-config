@@ -21,42 +21,45 @@ let
   colors = theme.colors;
   accent = theme.accent;
 
-  # ── The one-time secret ─────────────────────────────────────────────
-  # tg needs a phone number before tdlib will start the login, and the library
-  # underneath prompts for the code but never for the number itself — so with
-  # it unset, first run just fails.
+  # ── The phone number ────────────────────────────────────────────────
+  # tdlib needs it before login can start, and the library underneath prompts
+  # for the SMS code but never for the number itself.
   #
-  # It deliberately does not live in this file. It is personal data in a git
-  # repository, and conf.py here is a read-only store symlink that cannot be
-  # edited afterwards anyway. Instead the generated config reads it at startup
-  # from a small writable file next to itself, which is created once by hand
-  # and never tracked:
-  #
-  #   echo '+49...' > ~/.config/tg/phone
+  # It stays out of this file: personal data, public repository, and conf.py is
+  # a read-only store symlink that could not be edited afterwards anyway. It
+  # lives in ~/.config/tg/phone (0600, untracked) instead, and the config below
+  # asks for it the first time and writes it there — which is what tg itself
+  # does when it has no config, and is only reproduced here because shipping a
+  # conf.py is what stopped tg from doing it.
   #
   # runpy.run_path only promotes UPPERCASE names into tg's config, so the
-  # lowercase helper below is invisible to it.
+  # lowercase helpers below are invisible to it.
   configText = ''
     # Generated from home/colors.nix — do not edit by hand.
     import os
 
     _phone_file = os.path.expanduser("~/.config/tg/phone")
+
     if os.path.isfile(_phone_file):
         PHONE = open(_phone_file).read().strip()
     else:
-        # Without this, tg gets PHONE=None and dies eight frames deep in tdlib
-        # with "You must provide bot_token or phone", which says nothing about
-        # where to put one. SystemExit from runpy stops it here instead, with
-        # the actual instruction.
-        raise SystemExit(
-            "tg: no phone number configured.\n"
-            "\n"
-            "  mkdir -p ~/.config/tg\n"
-            "  echo '+49...' > ~/.config/tg/phone\n"
-            "\n"
-            "It is kept out of the flake on purpose: personal data, public "
-            "repo, and conf.py is a read-only store symlink."
-        )
+        # tg normally asks for the number on first run and writes it into the
+        # conf.py it generates. Shipping a conf.py from Nix suppresses that,
+        # because tg only prompts when no config exists at all — so the prompt
+        # is reproduced here rather than pushed onto the user as a file to
+        # create by hand.
+        #
+        # This runs during runpy.run_path, before curses starts, which is the
+        # same point tg's own prompt would have run at.
+        print("Enter your phone number in international format "
+              "(including country code)")
+        PHONE = input("phone> ").strip()
+        if not PHONE.startswith("+"):
+            PHONE = "+" + PHONE
+        os.makedirs(os.path.dirname(_phone_file), exist_ok=True)
+        with open(os.open(_phone_file, os.O_CREAT | os.O_WRONLY, 0o600),
+                  "w") as _f:
+            _f.write(PHONE + "\n")
 
     # Usernames are coloured by picking from this tuple. The default is
     # range(2, 16) — every colour the terminal has, which in this palette means
