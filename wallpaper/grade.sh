@@ -75,11 +75,28 @@ gw effects contrast "$tmp/fit.png" --mode sigmoid -s "$SIGMOID" -p "$MIDPOINT" \
    --output "$tmp/con.png"
 gw effects saturation "$tmp/con.png" -p "$SATURATION" --output "$tmp/sat.png"
 
-# 4. palette blend, at PALETTE percent
-python3 - "$COLORS" "$tmp/theme.json" <<'PY'
-import json, re, sys
-hexes = re.findall(r'#[0-9a-fA-F]{6}', open(sys.argv[1]).read())
-json.dump({"name": "nixos-colors", "colors": sorted(set(h.lower() for h in hexes))},
+# 4. palette blend, at PALETTE percent.
+#    The palette is EVALUATED out of colors.nix, not grepped for #rrggbb. That
+#    file also carries an `accent` block of semantic UI roles — panel fills,
+#    border lines, the raster dot — and those are surfaces rather than palette,
+#    so a regex over the whole file sweeps in a dozen near-identical dark teals
+#    and drags the blend toward them. `colors` alone is foreground, background
+#    and the sixteen ANSI entries, which is what the recipe has always meant.
+nix eval --json --file "$COLORS" colors > "$tmp/colors.json"
+python3 - "$tmp/colors.json" "$tmp/theme.json" <<'PY'
+import json, sys
+
+
+def walk(v):
+    if isinstance(v, str):
+        yield v
+    elif isinstance(v, dict):
+        for x in v.values():
+            yield from walk(x)
+
+
+c = json.load(open(sys.argv[1]))
+json.dump({"name": "nixos-colors", "colors": sorted({h.lower() for h in walk(c)})},
           open(sys.argv[2], 'w'))
 PY
 gw convert "$tmp/sat.png" -t "$tmp/theme.json" --output "$tmp/pal.png"

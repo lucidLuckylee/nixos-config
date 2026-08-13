@@ -1,11 +1,67 @@
 # Animated wallpaper generator
 
-Everything needed to rebuild `~/.local/share/wallpaper/animated.mp4`. Kept out
-of the NixOS repo because it is large, not because of licensing — every asset is
-now generated here, so nothing in the render carries conditions. (`src/` holds
-the CC BY-SA clip the drops used to come from; it is no longer read and can be
-deleted.) Machines without the mp4 fall back to the still, via
-`ConditionPathExists` on the mpvpaper unit in `home/linux.nix`.
+Everything needed to rebuild `~/.local/share/wallpaper/animated.mp4`. The render
+is kept out of git because it is ~103 MB and composites clips that may be used
+but not redistributed. Machines without it fall back to the still, via
+`ConditionPathExists` on the mpvpaper unit in `home/wallpaper.nix` — so a fresh
+clone is never broken, just static.
+
+The rest of this file is *why*, including a number of approaches that were tried
+and abandoned. Read the relevant section before changing anything visual; most
+of the obvious ideas are in here with the reason they failed.
+
+## Commands
+
+Nix and nothing else — every script fetches its own dependencies.
+
+    ./py.sh script.py          # numpy + pillow + scipy
+    ./pytorch.sh script.py     # + torch + transformers
+
+Full rebuild, in order. `pytorch.sh` should never be needed: `sam/` and
+`layers.png` are committed, so the depth model and SAM never run again unless
+you want to redo the layer map — that alone saves a ~3.7 GB model download.
+
+    ./py.sh steam3.py                     # ~70 s   -> steam/  (360 frames)
+    ./py.sh drip.py                       # ~35 s   -> drip/   (1440 frames)
+    ./py.sh screen.py src/a.mp4 ...       # ~3 min  -> screen/ (optional)
+    ./py.sh graph.py                      # instant -> graph5.gen.txt
+    OUT=hq.mp4 ./render5.sh               # ~56 min -> ~103 MB
+    ./verify.sh hq.mp4
+    ./install.sh hq.mp4
+
+`steam/`, `drip/` and `screen/` are gitignored; everything else the render reads
+is committed, so a first render works straight after clone. `render5.sh` refuses
+to run when `graph5.gen.txt` is older than `graph.py` or `screen/meta.sh` — a
+stale graph is silently WRONG rather than broken, since the input indices still
+resolve, just to the wrong images.
+
+The monitor's programme. Clips play in the order given; `@0:43-1:45` takes an
+excerpt. `rm -rf screen/` reverts the screen to the bar visualiser.
+
+    ./py.sh screen.py src/ants.mp4 src/penguin.mp4@0:43-1:45 \
+                      src/surf.mp4 src/vinland.mp4
+
+A still for a screen of a different shape:
+
+    ./grade.sh ~/Downloads/art.jpg 1680x1050 ../home/wallpaper2.jpg
+    UPSCALE=0 ./grade.sh ...              # skip ESRGAN, re-tune the grade only
+
+Preview a slice instead of the whole loop. `FFMPEG_EXTRA` is appended after the
+output options, so a second `-t` overrides the built-in `-t 288`:
+
+    OUT=/tmp/peek.mp4 FFMPEG_EXTRA="-t 30" ./render5.sh
+
+Sampling a single late frame is *not* cheap — ffmpeg processes the timeline up
+to the moment you ask for, so grabbing t=250 costs nearly a whole render. Render
+once and pull frames out of the mp4 with `-ss`. To check the screen, do not
+render at all; composite one frame onto the plate (see "The screen").
+
+Put it on another machine — no rebuild and no re-render. The render is 1920x1080
+and every Linux machine here has a 1920x1080 output, and the mpvpaper unit
+already exists everywhere, merely skipped until the file appears.
+
+    cp ~/.local/share/wallpaper/animated.mp4 /run/media/lucy/STICK/ && sync
+    ./install.sh /run/media/lucy/STICK/animated.mp4    # on the other machine
 
 ## Pipeline
 
@@ -349,3 +405,10 @@ will decode half-written bytes; use `install.sh`, which writes a temp file and
 
 `-filter_complex_script` does not accept `#` comments, which is why the graph
 lives in a `.gen.txt`.
+
+## Rough edges
+
+- The fog phase is 48 s of near-static haze and may want shortening.
+- The surf clip is a night scene and stays dark even after auto-levels. It reads
+  as a screen showing something dark, which is correct, but it is the least
+  legible of the four at 111x56.
