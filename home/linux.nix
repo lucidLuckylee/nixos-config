@@ -11,6 +11,7 @@ let
   accent = theme.accent;
   opacity = theme.opacity;
   opacity_alpha_hex = theme.opacity_alpha_hex;
+  workspaces = import ./workspaces.nix;
   mod = "Mod4";
 
   # wmenu takes colours as bare RRGGBB[AA], with no leading '#'.
@@ -29,6 +30,7 @@ in {
     ./telegram-theme.nix
     ./gtk.nix
     ./tg.nix
+    ./quickshell.nix
   ];
 
   # Symlink ~/Usb to USB mount location
@@ -75,47 +77,10 @@ in {
     pinentry.package = pkgs.pinentry-curses;
   };
 
-  programs.i3status = {
-    enable = true;
-    enableDefault = false;
-    general = {
-      colors = true;
-      color_good = colors.foreground;
-      color_degraded = accent.warm;
-      color_bad = colors.bright.red;
-      interval = 1;
-    };
-    modules = {
-    "wireless _first_" = {
-      position = 0;
-      settings = {
-        color_good = accent.primary;
-        format_up = "%essid%quality %bitrate 󱚽 ";
-        format_down = "󰖪 ";
-        format_bitrate = "%g%cb/s";
-      };
-    };
-      "volume master" = {
-        position = 1;
-        settings = {
-          format = "󰎇  %volume ";
-          format_muted = "󰎊 (%volume)";
-        };
-      };
-      "disk /" = {
-        position = 2;
-        settings = {
-          format = " %avail";
-        };
-      };
-      "time" = {
-        position = 4;
-        settings = {
-          format = "%d.%m. %H:%M";
-        };
-      };
-    };
-  };
+  # i3status is gone with swaybar: the same four readouts — wifi, volume, free
+  # disk, the clock — are on the Quickshell bar (./quickshell.nix), read from
+  # NetworkManager, PipeWire and the system clock over their own interfaces
+  # rather than re-rendered into a status line once a second.
 
   services.swayidle = {
     enable = true;
@@ -141,6 +106,21 @@ in {
   #
   # -p pauses decoding whenever the wallpaper is fully covered, which is most of
   # the time in practice. Running uncovered it costs ~5% of one core.
+  #
+  # ── Why the layer is set explicitly ─────────────────────────────────
+  # swaybg (spawned by sway from `output.bg` below) and mpvpaper are both
+  # layer-shell clients, and left to itself mpvpaper takes the same `background`
+  # layer swaybg is on. Two surfaces on one layer are stacked in the order they
+  # were created, so whichever started *last* is on top — and sway respawns
+  # swaybg every time its config is reloaded, which is every `nixos-rebuild
+  # switch`. The video would then silently disappear behind the still until the
+  # next reboot, with both processes still running and nothing in either log.
+  # mpvpaper says as much on startup: "swaybg is running. This may block
+  # mpvpaper from being seen."
+  #
+  # `bottom` is the layer between `background` and ordinary windows, so the
+  # video is unconditionally above the still and unconditionally below
+  # everything else. Start order stops mattering.
   systemd.user.services.mpvpaper = {
     Unit = {
       Description = "Animated wallpaper";
@@ -152,6 +132,7 @@ in {
       ExecStart = pkgs.lib.concatStringsSep " " [
         "${pkgs.mpvpaper}/bin/mpvpaper"
         "-p"
+        "-l bottom"
         "-o '--loop-file=inf --no-audio --hwdec=auto --video-unscaled=no'"
         "'*'"
         animatedWallpaper
@@ -208,14 +189,18 @@ in {
           name = "${mod}+Shift+${toString i}";
           value = "move container to workspace number ${toString i}; workspace number ${toString i}";
         }) [1 2 3 4 5 6 7 8 9] )
+        # The named workspaces — Firefox and Telegram — come from
+        # ./workspaces.nix, so their glyphs are written down once instead of
+        # four times here and once more in the bar's ordering.
+        // builtins.listToAttrs (builtins.concatMap (ws: [
+          { name = "${mod}+${ws.key}"; value = "workspace ${ws.name}"; }
+          { name = "${mod}+Shift+${ws.key}";
+            value = "move container to workspace ${ws.name}; workspace ${ws.name}"; }
+        ]) workspaces.named)
         // {
-          "${mod}+t" = "workspace ";
-          "${mod}+Shift+t" = "move container to workspace ; workspace ";
           "${mod}+Shift+o" = "floating toggle";
           "${mod}+o" = "focus mode_toggle";
 
-          "${mod}+space" = "workspace ";
-          "${mod}+Shift+space" = "move container to workspace ; workspace ";
           "${mod}+Shift+tab" = "move scratchpad";
           "${mod}+tab" = "scratchpad show";
 
@@ -275,38 +260,15 @@ in {
           childBorder = accent.dim;
         };
       };
-      bars = [{
-        position = "top";
-        statusCommand = "i3status -c ${config.xdg.configHome}/i3status/config";
-        trayOutput = "none";
-        colors = {
-          background = colors.background + opacity_alpha_hex;
-          statusline = colors.foreground;
-          separator  = accent.dim;
-          # Focused workspace is a filled neon chip — dark text on cyan, which
-          # is the one place the accent is bright enough to invert against.
-          focusedWorkspace = {
-            border     = accent.primary;
-            background = accent.primary;
-            text       = colors.background;
-          };
-          activeWorkspace = {
-            border     = accent.dim;
-            background = accent.surface;
-            text       = accent.primary;
-          };
-          inactiveWorkspace = {
-            border     = colors.background;
-            background = colors.background;
-            text       = accent.muted;
-          };
-          urgentWorkspace = {
-            border     = accent.warm;
-            background = accent.warm;
-            text       = colors.background;
-          };
-        };
-      }];
+      # No swaybar. The bar is Quickshell's now (./quickshell.nix), which is
+      # what makes the Bluetooth menu possible: swaybar's protocol is a line of
+      # text and a click event, and nothing in it can open a panel.
+      #
+      # Left empty rather than deleted so this stays the place someone looks
+      # for the bar. The workspace chips, the status readouts and the neon on
+      # the focused workspace all moved over; the one thing that did not is the
+      # tray, which was already off here (`trayOutput = "none"`).
+      bars = [];
       window.titlebar = false;
       window.border = 1;
       window.hideEdgeBorders = "none";

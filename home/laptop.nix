@@ -8,22 +8,10 @@
     brightnessctl
   ];
 
-  # Add laptop-specific i3status modules
-  programs.i3status.modules = {
-    "battery 0" = {
-      position = 3;
-      settings = {
-        format = "%status %percentage (%remaining)";
-        format_percentage = "%.02f%s";
-        status_chr = "󰂄";
-        status_bat = "󱊡";
-        status_full = "󰁹";
-        low_threshold = "5";
-        threshold_type = "percentage";
-        path = "/sys/class/power_supply/BAT%d/uevent";
-      };
-    };
-  };
+  # The battery readout that used to be an i3status module here is on the
+  # Quickshell bar now (../home/quickshell/Bar.qml), and it does not need to be
+  # declared per machine: UPower says whether there is a battery, so a desktop
+  # gets one fewer pill without being told.
 
   # Add laptop-specific Sway keybindings for brightness control
   wayland.windowManager.sway.config.keybindings = pkgs.lib.mkOptionDefault {

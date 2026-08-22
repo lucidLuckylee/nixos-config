@@ -102,6 +102,11 @@
   opacity = 0.9;
   opacity_alpha_hex = "E5";
 
+  # Note that `opacity` above is the *window* opacity — terminals and the like.
+  # The shell's own surfaces (the bar, and the menus that hang off it) are
+  # deliberately solid instead, and paint `accent.panel` flat. See
+  # ../home/quickshell/Bar.qml.
+
   # ── Raster ──────────────────────────────────────────────────────────
   # Spacing in physical pixels between dots in the background raster. Shared
   # so the terminal's tiled PNG (./shared.nix, generated at build time) and

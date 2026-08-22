@@ -98,6 +98,14 @@
   # USB auto-mounting
   services.udisks2.enable = true;
 
+  # Battery state over D-Bus, for the bar's battery pill (see
+  # ../home/quickshell/Bar.qml). The old i3status module read
+  # /sys/class/power_supply directly and so needed no daemon; UPower is what
+  # replaces that, and it is also what reports the charge level of connected
+  # Bluetooth devices. Without it the shell logs "Could not start UPower" and
+  # the pill is simply absent.
+  services.upower.enable = true;
+
   environment.etc."distrobox/distrobox.conf".text = ''
     container_additional_volumes="/nix/store:/nix/store:ro
     /etc/profiles/per-user:/etc/profiles/per-user:ro"
