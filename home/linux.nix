@@ -23,6 +23,46 @@ let
   # Machines that do not have the file simply keep the still — see the
   # ConditionPathExists on the service below.
   animatedWallpaper = "${config.xdg.dataHome}/wallpaper/animated.mp4";
+
+  # Blank the screens on demand, and keep them blank.
+  #
+  # `swaymsg "output * power off"` on its own does not survive contact with
+  # swayidle: the manual blank leaves the session idle, so ten minutes later the
+  # idle timeout fires (a no-op, the outputs are already off) and arms its
+  # resumeCommand — and the next twitch of the mouse powers the screens back on,
+  # without the toggle key ever having been pressed. So swayidle is stopped for
+  # as long as the blank lasts. Nothing is lost by that: the only thing swayidle
+  # does here is blank the screens, which is already the state we are in.
+  #
+  # The flag file records whether swayidle was actually running when we blanked,
+  # so unblanking restores what was there rather than unconditionally starting
+  # it — otherwise this key would silently cancel the "always-on" mode below.
+  #
+  # `.power` is the field sway 1.9+ reports; `.dpms` is its older name, kept for
+  # the case of an older sway on some other machine.
+  blankToggle = pkgs.writeShellScript "sway-blank-toggle" ''
+    set -eu
+    flag="''${XDG_RUNTIME_DIR:-/tmp}/sway-blank.swayidle-was-active"
+
+    on=$(${pkgs.sway}/bin/swaymsg -t get_outputs -r \
+      | ${pkgs.jq}/bin/jq -r 'any(.[]; (.power // .dpms) == true)')
+
+    if [ "$on" = "true" ]; then
+      if ${pkgs.systemd}/bin/systemctl --user is-active --quiet swayidle.service; then
+        : > "$flag"
+        ${pkgs.systemd}/bin/systemctl --user stop swayidle.service
+      else
+        rm -f "$flag"
+      fi
+      ${pkgs.sway}/bin/swaymsg "output * power off"
+    else
+      ${pkgs.sway}/bin/swaymsg "output * power on"
+      if [ -e "$flag" ]; then
+        rm -f "$flag"
+        ${pkgs.systemd}/bin/systemctl --user start swayidle.service
+      fi
+    fi
+  '';
 in {
   imports = [
     ./telegram-claude.nix
@@ -104,8 +144,19 @@ in {
   # and the still wallpaper is simply what stays on screen. The same holds if
   # mpvpaper dies — the background underneath it is already correct.
   #
-  # -p pauses decoding whenever the wallpaper is fully covered, which is most of
-  # the time in practice. Running uncovered it costs ~5% of one core.
+  # -p pauses decoding whenever sway stops sending frame callbacks, which covers
+  # both a fullscreen window in the way and the screens being powered off by
+  # swayidle. Measured: with the outputs off, mpvpaper drops to 0.5% of a core
+  # and the GPU to ~10% busy, so the idle blank costs nothing extra.
+  #
+  # What it deliberately does not cover is an ordinary tiled window, and that is
+  # right here rather than a shortcoming: with the `opacity 0.9` rule further
+  # down the wallpaper is genuinely still being looked at through every window,
+  # so pausing then would show up as a background that stops moving.
+  #
+  # --really-quiet is there for the journal rather than for power. mpv writes a
+  # progress line to stdout twice a second, and systemd faithfully commits all
+  # of it to disk: 16k lines of "V: 00:01:02 / 00:04:48" per boot.
   #
   # ── Why the layer is set explicitly ─────────────────────────────────
   # swaybg (spawned by sway from `output.bg` below) and mpvpaper are both
@@ -133,7 +184,7 @@ in {
         "${pkgs.mpvpaper}/bin/mpvpaper"
         "-p"
         "-l bottom"
-        "-o '--loop-file=inf --no-audio --hwdec=auto --video-unscaled=no'"
+        "-o '--loop-file=inf --no-audio --hwdec=auto --video-unscaled=no --really-quiet'"
         "'*'"
         animatedWallpaper
       ];
@@ -215,6 +266,11 @@ in {
 
           # Move entire workspace to the other monitor (cycles through outputs)
           "${mod}+Shift+w" = ''exec swaymsg -t get_outputs | jq '[.[] | select(.active == true)] | .[(map(.focused) | index(true) + 1) % length].name' | xargs swaymsg move workspace to'';
+
+          # Turn the screens off until the same chord is pressed again.
+          # --locked so the second press gets through a lock screen, and
+          # --no-repeat so holding the key does not blank-unblank in a loop.
+          "--locked --no-repeat ${mod}+XF86MonBrightnessDown" = "exec ${blankToggle}";
 
           # Toggle always-on mode
           "${mod}+Shift+m" = ''exec systemctl --user stop swayidle.service; mode "always-on"'';
