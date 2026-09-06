@@ -32,6 +32,95 @@ let
         -fill '${accent.primary}' -draw 'point 0,0' PNG32:$out
     '';
 
+  # ── The copy tick ───────────────────────────────────────────────────
+  # Drawn rather than pulled from an icon theme. `-gtk-icontheme()` would make
+  # the glyph depend on adwaita-icon-theme being reachable through
+  # XDG_DATA_DIRS, which Ghostty's wrapper does not put there itself, and this
+  # way the stroke is accent.primary by construction the same way the dot tile
+  # above is.
+  #
+  # Authored at 40px and painted at 20 (see background-size in the stylesheet
+  # below) so the tick survives a HiDPI output instead of being upscaled.
+  copyTick = pkgs.writeText "ghostty-copy-tick.svg" ''
+    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 20 20">
+      <path d="M4.25 10.5 L8.25 14.5 L15.75 6" fill="none" stroke="${accent.primary}"
+            stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  '';
+
+  # ── Ghostty's GTK stylesheet ────────────────────────────────────────
+  # Loaded through gtk-custom-css further down, and Linux-only: all of this
+  # styles a libadwaita widget that the macOS build does not have.
+  #
+  # Everything here targets the toast, which is the only GTK chrome Ghostty
+  # draws over the terminal surface. Untouched it is a grey pill reading
+  # "Copied to clipboard" with a close button that the theme renders as a hard
+  # teal square — the one piece of the terminal that ignores the palette.
+  #
+  # The text is redundant. Nothing else in Ghostty puts a pill there and it
+  # only ever appears immediately after the copy binding, so it is replaced by
+  # a tick and the pill collapses to a disc around it.
+  #
+  # The widget tree below is libadwaita's, and is what the selectors assume:
+  #
+  #   toast                 the pill
+  #   ├─ widget             an AdwBin wrapping the title
+  #   │  └─ label           "Copied to clipboard"
+  #   ├─ button             an action button, unused here
+  #   └─ button             the close button
+  #
+  # Ghostty's other toast — "Reloaded the configuration" — becomes the same
+  # tick. That is left deliberately: the two are raised by different keys, so
+  # what was just asked for is never in doubt, and a tick reads as "that
+  # worked" for both. Config *errors* are not toasts, they get their own
+  # window, so nothing failure-shaped is being disguised as a success here.
+  #
+  # Note the file:// on the url(). Ghostty reads the stylesheet itself and
+  # hands GTK a string rather than a file, so the provider has no base file to
+  # resolve against and a bare /nix/store path silently loads nothing — the
+  # disc renders empty, with no CSS error to say why.
+  ghosttyCss = pkgs.writeText "ghostty.css" ''
+    toast {
+      /* A disc rather than a pill: the tick is all that is left inside. */
+      min-width: 36px;
+      min-height: 36px;
+      padding: 0;
+      margin: 0 0 16px 0;
+      border-radius: 999px;
+
+      /* Panel fill so terminal text does not read through it, a neon rim and
+         a soft bloom for the signage the palette came from, and a drop shadow
+         to lift the whole thing off the raster. */
+      background: alpha(${accent.panel}, 0.92);
+      box-shadow: 0 0 0 1px alpha(${accent.primary}, 0.45),
+                  0 0 14px alpha(${accent.primary}, 0.18),
+                  0 4px 12px alpha(black, 0.55);
+
+      background-image: url("file://${copyTick}");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 20px 20px;
+    }
+
+    /* Adwaita adds a directional padding that the shorthand above does not
+       reach, and it pushes the tick off centre. */
+    toast:dir(ltr), toast:dir(rtl) { padding: 0; }
+
+    /* GTK CSS has no `display: none`, so the label and the close button have
+       to be shrunk to nothing instead. A transparent 1px label still occupies
+       a few pixels, which is why min-width above sets the real size. */
+    toast > widget { margin: 0; }
+    toast > widget > label { font-size: 1px; color: transparent; }
+    toast > button {
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+      margin: 0;
+      opacity: 0;
+      -gtk-icon-size: 1px;
+    }
+  '';
+
   # Stable Rust toolchain assembled from fenix components
   rustToolchain = pkgs.fenix.combine (with pkgs.fenix.stable; [
     cargo
@@ -81,6 +170,7 @@ in {
     ffmpeg
     claude-code
     rustToolchain
+    llvmPackages.libclang
     nerd-fonts.dejavu-sans-mono
     # Patched browsers for Playwright; also kept here as a gcroot so
     # nix-collect-garbage doesn't sweep them between home-manager switches.
@@ -404,6 +494,13 @@ in {
 
       confirm-close-surface = false;
 
+      # Ghostty's other overlay: it flashes the terminal's dimensions over the
+      # surface whenever a surface is resized. The default (`after-first`)
+      # suppresses that only for a window's own creation, which is the wrong
+      # half under a tiling WM — opening one window resizes every other window
+      # on the workspace, so they all flash a cell count at you. Never.
+      resize-overlay = "never";
+
       palette = [
         "0=${colors.normal.black}"
         "1=${colors.normal.red}"
@@ -422,6 +519,11 @@ in {
         "14=${colors.bright.cyan}"
         "15=${colors.bright.white}"
       ];
+    } // lib.optionalAttrs (!isDarwin) {
+      # See ghosttyCss at the top of this file. Guarded rather than set
+      # unconditionally so the macOS build is never asked to validate a GTK
+      # option, and so the stylesheet is not built on a machine with no GTK.
+      gtk-custom-css = "${ghosttyCss}";
     };
   };
 
