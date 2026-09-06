@@ -6,6 +6,7 @@
     ../../modules/common.nix
     ../../modules/users.nix
     ../../modules/sway.nix
+    ../../modules/power.nix
     ../../modules/overlays.nix
   ];
 
