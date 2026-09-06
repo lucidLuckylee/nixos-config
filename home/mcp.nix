@@ -1,8 +1,13 @@
-# Claude Code settings and MCP (Model Context Protocol) server configuration
+# Claude Code / Codex settings and MCP (Model Context Protocol) servers
 #
-# Settings (model, permissions, plugins) are managed via ~/.claude/settings.json
-# MCP servers are merged into ~/.claude.json via an activation script, since
-# that file contains dynamic state that Nix shouldn't fully own.
+# Claude: settings (model, permissions, plugins) are managed via
+# ~/.claude/settings.json. MCP servers are merged into ~/.claude.json via an
+# activation script, since that file contains dynamic state that Nix
+# shouldn't fully own.
+#
+# Codex: home-manager's programs.codex owns ~/.codex/config.toml outright,
+# and its [mcp_servers] table takes the same {command, args} shape Claude
+# uses — so the single mcpServers attrset below feeds both tools.
 #
 { pkgs, lib, config, ... }:
 let
@@ -156,6 +161,22 @@ in {
 
   # Static settings — Nix fully owns this file
   home.file.".claude/settings.json".text = builtins.toJSON claudeSettings;
+
+  # ── Codex ─────────────────────────────────────────────────────────
+  # config.toml becomes a read-only symlink into the store, so imperative
+  # edits (`codex mcp add`, the interactive "trust this folder?" prompt)
+  # cannot persist — anything that should stick goes here instead. Login
+  # is unaffected: `codex login` writes ~/.codex/auth.json, which Nix
+  # leaves alone.
+  programs.codex = {
+    enable = true;
+    settings = {
+      mcp_servers = mcpServers;
+
+      # Would otherwise be asked interactively and fail to save (see above).
+      projects."${config.home.homeDirectory}/NixOS".trust_level = "trusted";
+    };
+  };
 
   # MCP servers — merged into ~/.claude.json (preserves dynamic state)
   home.activation.setupClaudeMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
