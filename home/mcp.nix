@@ -91,9 +91,14 @@ let
     };
 
     # Bitcoin: key gen, address validation, tx decoding, blockchain queries
+    #
+    # No @latest: an explicit tag makes npx resolve it against the registry on
+    # every launch, so startup carries a network roundtrip even when the
+    # package is already in the npx cache. Untagged, the cached copy runs
+    # as-is.
     bitcoin = {
       command = npx;
-      args = [ "-y" "bitcoin-mcp@latest" ];
+      args = [ "-y" "bitcoin-mcp" ];
     };
 
     # Web: MDN CSS docs and browser compatibility data
@@ -161,7 +166,14 @@ let
   # script below for what survives from the imperative side.
   tomlFormat = pkgs.formats.toml { };
   codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
-    mcp_servers = mcpServers;
+    # Codex gives a server 10s from spawn to the initialize response, then
+    # closes its stdin — which is exactly how the bitcoin server died: Codex
+    # launches every npx server here simultaneously on session start, and on
+    # a cold npx cache the straggler of that stampede can take longer than
+    # 10s to first byte (measured 1.4s warm). Claude's own timeout is
+    # roomier, so the raise lives in this projection, not in mcpServers.
+    mcp_servers =
+      lib.mapAttrs (_: s: s // { startup_timeout_sec = 60; }) mcpServers;
   };
 
   # Python because it is the one thing at hand that can round-trip TOML:
