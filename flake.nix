@@ -16,11 +16,19 @@
     # Rust toolchain manager (replaces rustup on NixOS)
     fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Fresher nixpkgs for codex only — the CLI moves faster than the main
+    # pin. Drop this (and the overlay below) whenever the main nixpkgs is
+    # updated past what it provides.
+    nixpkgs-codex.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
-  outputs = { self, nixpkgs, home-manager, nix-darwin, nvim, fenix, ... }:
+  outputs = { self, nixpkgs, home-manager, nix-darwin, nvim, fenix, nixpkgs-codex, ... }:
     let
       system = "x86_64-linux";
+      codexOverlay = final: prev: {
+        codex = nixpkgs-codex.legacyPackages.${prev.stdenv.hostPlatform.system}.codex;
+      };
     in {
       # Laptop configuration
       nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
@@ -29,7 +37,7 @@
           ./machines/nixos/configuration.nix
           home-manager.nixosModules.home-manager
           { _module.args = { inherit nvim; }; }
-          { nixpkgs.overlays = [ fenix.overlays.default ]; }
+          { nixpkgs.overlays = [ fenix.overlays.default codexOverlay ]; }
         ];
       };
 
@@ -40,7 +48,7 @@
           ./machines/desktop/configuration.nix
           home-manager.nixosModules.home-manager
           { _module.args = { inherit nvim; }; }
-          { nixpkgs.overlays = [ fenix.overlays.default ]; }
+          { nixpkgs.overlays = [ fenix.overlays.default codexOverlay ]; }
         ];
       };
 
@@ -51,7 +59,7 @@
           ./machines/mac/configuration.nix
           home-manager.darwinModules.home-manager
           { _module.args = { inherit nvim; }; }
-          { nixpkgs.overlays = [ fenix.overlays.default ]; }
+          { nixpkgs.overlays = [ fenix.overlays.default codexOverlay ]; }
         ];
       };
     };

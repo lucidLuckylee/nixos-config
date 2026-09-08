@@ -166,6 +166,13 @@ let
   # script below for what survives from the imperative side.
   tomlFormat = pkgs.formats.toml { };
   codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
+    # Independent of the per-server timeout below: this is how long session
+    # startup waits for optional servers before reporting them "not
+    # initialized" (they still finish connecting in the background). The
+    # 1s default is shorter than a warm npx launch, so every session
+    # started with a wall of spurious warnings. Key verified against the
+    # binary's config parser — it is real, though undocumented.
+    mcp_optional_startup_grace_ms = 10000;
     # Codex gives a server 10s from spawn to the initialize response, then
     # closes its stdin — which is exactly how the bitcoin server died: Codex
     # launches every npx server here simultaneously on session start, and on
