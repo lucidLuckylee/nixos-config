@@ -5,9 +5,11 @@
 # activation script, since that file contains dynamic state that Nix
 # shouldn't fully own.
 #
-# Codex: home-manager's programs.codex owns ~/.codex/config.toml outright,
-# and its [mcp_servers] table takes the same {command, args} shape Claude
-# uses — so the single mcpServers attrset below feeds both tools.
+# Codex: [mcp_servers] in ~/.codex/config.toml takes the same
+# {command, args} shape Claude uses, so the single mcpServers attrset below
+# feeds both tools. Like ~/.claude.json, config.toml holds runtime state
+# (Codex records which directories are trusted there), so it too is merged
+# by an activation script rather than symlinked.
 #
 { pkgs, lib, config, ... }:
 let
@@ -152,6 +154,41 @@ let
 
   mcpConfigFile = pkgs.writeText "claude-mcp-servers.json"
     (builtins.toJSON mcpServers);
+
+  # ── Codex configuration (merged into ~/.codex/config.toml) ────────
+  # Same shape as Claude's, so the mcpServers attrset above is reused
+  # verbatim. Only the keys named here are owned by Nix; see the merge
+  # script below for what survives from the imperative side.
+  tomlFormat = pkgs.formats.toml { };
+  codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
+    mcp_servers = mcpServers;
+  };
+
+  # Python because it is the one thing at hand that can round-trip TOML:
+  # tomllib reads it (stdlib), tomli-w writes it back.
+  codexMergePython = pkgs.python3.withPackages (ps: [ ps.tomli-w ]);
+  codexMergeScript = pkgs.writeText "codex-config-merge.py" ''
+    import os, sys, tomllib
+    import tomli_w
+
+    managed_path, cfg_path = sys.argv[1], sys.argv[2]
+    with open(managed_path, "rb") as f:
+        managed = tomllib.load(f)
+    existing = {}
+    if os.path.exists(cfg_path):
+        with open(cfg_path, "rb") as f:
+            existing = tomllib.load(f)
+
+    # Managed keys win at the top level (mcp_servers is wholly Nix's, the
+    # same deal as Claude's .mcpServers), everything else Codex or the user
+    # wrote is kept as-is.
+    merged = {**existing, **managed}
+
+    tmp = cfg_path + ".tmp"
+    with open(tmp, "wb") as f:
+        tomli_w.dump(merged, f)
+    os.replace(tmp, cfg_path)
+  '';
 in {
   home.packages = [
     pkgs.nodejs
@@ -163,20 +200,23 @@ in {
   home.file.".claude/settings.json".text = builtins.toJSON claudeSettings;
 
   # ── Codex ─────────────────────────────────────────────────────────
-  # config.toml becomes a read-only symlink into the store, so imperative
-  # edits (`codex mcp add`, the interactive "trust this folder?" prompt)
-  # cannot persist — anything that should stick goes here instead. Login
-  # is unaffected: `codex login` writes ~/.codex/auth.json, which Nix
-  # leaves alone.
-  programs.codex = {
-    enable = true;
-    settings = {
-      mcp_servers = mcpServers;
+  # Only the package comes from programs.codex. Letting the module render
+  # settings turns config.toml into a read-only store symlink, and Codex
+  # writes to that file at runtime — every "trust this folder?" answer goes
+  # into its [projects] table — so the trust prompt died with
+  # "failed to persist config.toml". The activation script below is the
+  # Claude treatment instead: Nix owns mcp_servers, Codex keeps the rest.
+  programs.codex.enable = true;
 
-      # Would otherwise be asked interactively and fail to save (see above).
-      projects."${config.home.homeDirectory}/NixOS".trust_level = "trusted";
-    };
-  };
+  home.activation.setupCodexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    CODEX_CONFIG="$HOME/.codex/config.toml"
+    mkdir -p "$HOME/.codex"
+    # A previous generation managed this as a store symlink; a symlink would
+    # also make the tmp-file rename in the merge script land in the store.
+    [ -L "$CODEX_CONFIG" ] && rm "$CODEX_CONFIG"
+    ${codexMergePython}/bin/python3 ${codexMergeScript} \
+      ${codexManagedConfig} "$CODEX_CONFIG"
+  '';
 
   # MCP servers — merged into ~/.claude.json (preserves dynamic state)
   home.activation.setupClaudeMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
