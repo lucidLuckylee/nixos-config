@@ -1,9 +1,10 @@
 # Claude Code / Codex settings and MCP (Model Context Protocol) servers
 #
-# Claude: settings (model, permissions, plugins) are managed via
-# ~/.claude/settings.json. MCP servers are merged into ~/.claude.json via an
-# activation script, since that file contains dynamic state that Nix
-# shouldn't fully own.
+# Claude: settings (model, permissions, plugins) live in
+# ~/.claude/settings.json and MCP servers in ~/.claude.json. Both files also
+# hold state Claude itself writes at runtime, so neither is symlinked from the
+# store — activation scripts merge the Nix-owned keys into whatever is already
+# there.
 #
 # Codex: [mcp_servers] in ~/.codex/config.toml takes the same
 # {command, args} shape Claude uses, so the single mcpServers attrset below
@@ -42,7 +43,7 @@ let
     doCheck = false;
   };
 
-  # ── Claude Code global settings (owns ~/.claude/settings.json) ────
+  # ── Claude Code global settings (merged into ~/.claude/settings.json) ──
   claudeSettings = {
     model = "opus";
 
@@ -160,6 +161,9 @@ let
   mcpConfigFile = pkgs.writeText "claude-mcp-servers.json"
     (builtins.toJSON mcpServers);
 
+  claudeManagedSettings = pkgs.writeText "claude-managed-settings.json"
+    (builtins.toJSON claudeSettings);
+
   # ── Codex configuration (merged into ~/.codex/config.toml) ────────
   # Same shape as Claude's, so the mcpServers attrset above is reused
   # verbatim. Only the keys named here are owned by Nix; see the merge
@@ -215,8 +219,32 @@ in {
     rust-analyzer-mcp
   ];
 
-  # Static settings — Nix fully owns this file
-  home.file.".claude/settings.json".text = builtins.toJSON claudeSettings;
+  # Settings — the keys above are merged into ~/.claude/settings.json
+  #
+  # Not home.file: that renders the file as a read-only store symlink, and
+  # Claude Code writes to it at runtime — picking a reasoning effort level
+  # stores "effortLevel" there — so /effort died with
+  # "EROFS: read-only file system". Same deal as ~/.claude.json and Codex's
+  # config.toml below: Nix owns the keys it declares, Claude keeps the rest.
+  home.activation.setupClaudeSettings =
+    lib.hm.dag.entryAfter [ "writeBoundary" "linkGeneration" ] ''
+      CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+      mkdir -p "$HOME/.claude"
+      # An earlier generation left a store symlink here; it would also make the
+      # tmp-file rename below land in the store.
+      [ -L "$CLAUDE_SETTINGS" ] && rm "$CLAUDE_SETTINGS"
+
+      if [ -f "$CLAUDE_SETTINGS" ]; then
+        # Recursive merge with the managed side winning, so a nested key Nix
+        # does not name (an imperatively granted permission, say) survives.
+        ${pkgs.jq}/bin/jq -s '.[0] * .[1]' \
+          "$CLAUDE_SETTINGS" ${claudeManagedSettings} \
+          > "$CLAUDE_SETTINGS.tmp" \
+          && mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
+      else
+        install -m 644 ${claudeManagedSettings} "$CLAUDE_SETTINGS"
+      fi
+    '';
 
   # ── Codex ─────────────────────────────────────────────────────────
   # Only the package comes from programs.codex. Letting the module render
