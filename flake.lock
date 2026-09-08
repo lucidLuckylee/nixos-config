@@ -97,18 +97,18 @@
         "type": "github"
       }
     },
-    "nixpkgs-codex": {
+    "nixpkgs-cli": {
       "locked": {
-        "lastModified": 1788775869,
-        "narHash": "sha256-JRf1lSypbvKj6AzUZHpUA6YC1DirVuitZWOnRwcm+Ww=",
+        "lastModified": 1788861533,
+        "narHash": "sha256-Buka/LpiMwGdHeKn8n3X/7urV/qsnp2yqj4RZ73UoIQ=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "58973d74f1893afe13f5902919803a0e99da0ca4",
+        "rev": "033069e803f8c6e7626a36660a2c6df18eb3e989",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixpkgs-unstable",
+        "ref": "master",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -171,7 +171,7 @@
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-codex": "nixpkgs-codex",
+        "nixpkgs-cli": "nixpkgs-cli",
         "nvim": "nvim"
       }
     },
