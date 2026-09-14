@@ -1,23 +1,4 @@
-// One Bluetooth device, as a row in the menu's list.
-//
-// Contents are caelestia's — class icon, name, battery, connect, forget — but
-// stripped of the Material furniture they sit in over there. No filled circular
-// button behind the connect icon, no icon for delete: a lit 2px bar at the
-// left says connected, and the two actions are bare glyphs that brighten under
-// the pointer. On a desktop whose entire visual language is hairlines and
-// monospace, a solid disc is the loudest thing on screen, and it was being
-// spent on the least surprising control in the menu.
-//
-// Battery is a number rather than one of the eleven battery glyphs: "82%" is
-// smaller than the glyph, exact, and already in the font everything else is set
-// in. It is the one reading on the row, and the device's name is the only other
-// text — everything that can be a symbol is one.
-//
-// Everything is drawn in the dark colour, because the row sits on the menu's
-// accent-coloured host. Which means "connected" cannot be signalled with the
-// accent the way it is everywhere else on this desktop — the whole ground is
-// already that colour — so a connected row is the one that goes *solid*: a dark
-// slab with the accent showing through its text.
+// Bluetooth device status with pairing, connection and forget actions.
 
 import QtQuick
 import QtQuick.Layouts
@@ -28,8 +9,6 @@ Item {
 
     required property BluetoothDevice device
 
-    // Milliseconds to wait before this row arrives, so a list assembles in
-    // sequence rather than all at once. Set from the delegate's index.
     property int entryDelay: 0
 
     readonly property bool known: device.paired || device.bonded
@@ -39,11 +18,6 @@ Item {
 
     implicitHeight: 30
 
-    // The entry. Theirs scales from 0.7 as it fades in, and the scale rides the
-    // spatial curve so each row springs into place — which is where most of the
-    // "fluid" impression in that shell actually comes from. The whole menu is
-    // rebuilt on every open (see the Loader in BluetoothFlyout.qml), so this
-    // plays each time it is opened rather than once per session.
     opacity: 0
     scale: 0.7
     Component.onCompleted: entry.start()
@@ -63,14 +37,6 @@ Item {
         }
     }
 
-    // BlueZ reports an icon name from the freedesktop set. Only the handful of
-    // classes that actually turn up on a desk are mapped; anything else — and
-    // anything BlueZ declines to classify — falls back to the Bluetooth rune,
-    // which is never wrong, only unspecific.
-    //
-    // Written as codepoints rather than pasted glyphs: these live in the Nerd
-    // Font private use area, where a literal is an unreadable box in every
-    // editor and diff, and one silently swapped character is unfindable.
     readonly property string glyph: {
         const icon = device.icon || "";
         const md = cp => String.fromCodePoint(cp);
@@ -89,8 +55,6 @@ Item {
         return md(0xf00af);                                  // md-bluetooth
     }
 
-    // The connected marker: the row itself, filled. Inverting the inversion is
-    // the only move left that reads at a glance on an accent-coloured ground.
     Rectangle {
         anchors.fill: parent
         radius: Tokens.rounding.small
@@ -135,10 +99,6 @@ Item {
             font.pixelSize: Tokens.fontSize.small
         }
 
-        // ── Connect ─────────────────────────────────────────────────────
-        // md-link-off once connected, because the button's job is then to undo
-        // that. Doubles as the pair action for a device that has never been
-        // paired — from here they are the same intent.
         Text {
             id: link
             text: String.fromCodePoint(row.device.connected ? 0xf0338 : 0xf0337)
@@ -152,10 +112,6 @@ Item {
 
             Behavior on color { CAnim { motion: Motion.fastEffect } }
 
-            // Pairing and connecting take seconds and can fail, so something has
-            // to say the row is mid-flight. It used to say so in words —
-            // "connecting…" — which on a two-column menu was the longest thing
-            // on the row. The glyph breathing says the same and costs no width.
             SequentialAnimation on opacity {
                 running: row.busy
                 loops: Animation.Infinite
@@ -175,13 +131,8 @@ Item {
             }
         }
 
-        // ── Forget ──────────────────────────────────────────────────────
-        // Only for devices actually bonded to this machine — forgetting one
-        // that merely turned up in a scan does nothing, so there is nothing to
-        // press. A plain × rather than a bin glyph: it is the same character the
-        // rest of the desktop closes things with. The one place red is used
-        // inside this menu, since on the bar red is simply what text is.
         Text {
+            // Only bonded devices can be forgotten.
             visible: row.device.bonded
             text: "×"
             color: forgetHover.hovered ? Theme.hot

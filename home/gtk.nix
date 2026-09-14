@@ -1,32 +1,12 @@
 { pkgs, ... }:
 
-# GTK and Qt theming, and one shared file picker.
-#
-# ── Why the pickers looked different ────────────────────────────────
-# Nothing here was themed at all before, so each toolkit drew its own default:
-# Firefox is GTK and opened the GTK chooser, Telegram Desktop is Qt6 and opened
-# Qt's. Two different dialogs, both in default grey.
-#
-# The fix is to route both through the XDG desktop portal and let a single
-# backend answer. xdg-desktop-portal-gtk is added in ../modules/sway.nix — the
-# session previously had only the wlroots portal, which handles screencast and
-# nothing else, so there was no file-chooser backend to share in the first
-# place.
-#
-# With that in place:
-#   * Firefox is pointed at the portal by a pref (see ./firefox.nix)
-#   * Qt is pointed at it by QT_QPA_PLATFORMTHEME below
-# and both then show the same GTK dialog, themed by the CSS here.
+# Shared GTK/Qt file picker and theme. Firefox opts into the portal in firefox.nix.
 
 let
   theme = import ./colors.nix;
-  colors = theme.colors;
-  accent = theme.accent;
+  inherit (theme) colors accent;
 
-  # GTK's named colours. Setting these is what reaches the parts of the dialog
-  # that are not worth naming individually — entries, headers, the sidebar,
-  # selection — and it is far more durable than chasing widget selectors, which
-  # get renamed between GTK versions.
+  # Named GTK colours cover widgets outside the explicit selectors below.
   paletteCss = ''
     @define-color theme_bg_color ${colors.background};
     @define-color theme_base_color ${accent.panel};
@@ -200,13 +180,7 @@ in {
     gtk3.extraCss = paletteCss;
     gtk4.extraCss = paletteCss;
 
-    # Pinned rather than left to default, for the same reason as Firefox's
-    # configPath: home-manager is mid-migration here and which value you get is
-    # keyed off home.stateVersion, so a later bump would silently change it.
-    #
-    # null is also the correct answer on its own merits — GTK4 apps style
-    # themselves through libadwaita and ignore a GTK3 theme name entirely. The
-    # GTK4 side of this config is carried by extraCss above, which does work.
+    # GTK4 uses extraCss; avoid inheriting Home Manager's GTK3 theme default.
     gtk4.theme = null;
 
     gtk3.extraConfig.gtk-application-prefer-dark-theme = 1;

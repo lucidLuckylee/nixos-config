@@ -1,62 +1,19 @@
 { pkgs, ... }:
 
-# A Telegram Desktop theme in the same colours as the rest of the session.
-#
-# ── Why this ships as a zip ─────────────────────────────────────────
-# The obvious thing is to write a bare .tdesktop-palette and load it from the
-# UI. That does not work on 7.x, and the binary says why. "Open palette file"
-# and "Palette (*.tdesktop-palette)" sit in the string table wedged between
-# "Open crash log file", "Open DC endpoints" and "Save detailed log" — they
-# belong to the debug panel, not to Chat Settings. Alongside them is
-#
-#   Theme: Could not loadColorScheme from non-zip.
-#
-# which is the loader saying what it actually expects. So the deliverable is a
-# .tdesktop-theme: a zip with the palette inside it as colors.tdesktop-palette.
-#
-# ── Applying it ─────────────────────────────────────────────────────
-# Telegram registers no MIME handler for theme files (its .desktop file claims
-# only x-scheme-handler/tg and tonsite), so there is nothing to double-click.
-# The route that works is the one themes are normally shared by:
-#
-#   Telegram → Saved Messages → attach the .tdesktop-theme file below → send it
-#   → click the message → Apply theme
-#
-# The active theme then lives in Telegram's binary settings blob (tdata), which
-# nothing outside the app can write — hence a one-time manual step rather than
-# a fully declarative one. Re-sending the file after a palette change re-applies
-# it.
-#
-# ── On completeness ─────────────────────────────────────────────────
-# Every key below was checked against the strings in telegram-desktop 7.0.2
-# before being written here, so there are no invented names. This is still a
-# *partial* palette — Telegram's full set runs to several hundred keys and the
-# rest are left to fall back to the built-in dark theme. If a release ever
-# rejects a partial file outright, the fix is to start from Telegram's own
-# exported default palette and paste these values over it; the colours here are
-# the answer either way.
+# Telegram accepts a .tdesktop-theme archive. Apply it by sending the file
+# to Saved Messages, opening the message and choosing Apply theme. Repeat after
+# palette changes; the active theme is stored in Telegram's private settings.
 
 let
   theme = import ./colors.nix;
-  colors = theme.colors;
-  accent = theme.accent;
-  dotGap = theme.dotGap;
+  inherit (theme) colors accent dotGap;
 
-  # ── Bubble and selection shades ─────────────────────────────────────
-  # Not in colors.nix because nothing else wants them: they are the rungs
-  # between accent.panel and accent.line that a chat needs and no other app
-  # does. Incoming bubbles sit on `panel` so they match the Firefox address
-  # bar; outgoing sit one rung up so the two are separable at a glance without
-  # either becoming a bright slab behind a wall of text.
+  # Telegram-specific bubble and selection shades.
   msgOut     = "#124C5C";
   msgInSel   = "#124450";
   msgOutSel  = "#1A6272";
 
-  # The selected conversation. An earlier version filled this row with
-  # accent.primary — a full-width bar of neon cyan down the sidebar, which is
-  # what made the theme unusable to look at. A deep teal marks the selection
-  # just as clearly and lets the unread badge stay the only saturated thing on
-  # screen, which is the job a badge is for.
+  # Use a subdued conversation selection so unread badges remain prominent.
   dialogSel  = "#10485A";
 
   palette = {
@@ -133,18 +90,8 @@ let
     ${renderPalette}
   '';
 
-  # ── The chat background ─────────────────────────────────────────────
-  # Same raster as the terminal and the Firefox chrome: #06121A ground with a
-  # dot every 8px in the precomputed accent.rasterOnBg, so all three surfaces
-  # are the same screen.
-  #
-  # The tiling is chosen by *filename*, not by a flag — the binary carries
-  # "tiled.png" and "tiled.jpg" next to "background.png"/"background.jpg", and
-  # naming it tiled.png is what stops Telegram stretching one 64px square
-  # across the whole chat.
-  #
-  # 64x64 rather than a bare 8x8 tile: it holds the same 8px pitch but survives
-  # Telegram's HiDPI scaling without the pattern turning into mush.
+  # The filename tiled.png enables tiling. A 64px tile preserves the shared
+  # raster pitch under Telegram's HiDPI scaling.
   tiledBackground = pkgs.runCommand "tiled.png"
     { nativeBuildInputs = [ pkgs.imagemagick ]; }
     ''
@@ -154,12 +101,7 @@ let
         -size 64x64 tile:mpr:t PNG24:$out
     '';
 
-  # The zip Telegram will actually accept. Both member names are exact and both
-  # were read out of the binary rather than guessed.
-  #
-  # -X drops extra file attributes and timestamps so the archive is
-  # reproducible; without it the zip embeds the build date and the store hash
-  # changes on every rebuild for no reason.
+  # Telegram requires these archive member names. -X omits ZIP extra attributes.
   themeFile = pkgs.runCommand "cozy-cyberpunk.tdesktop-theme"
     { nativeBuildInputs = [ pkgs.zip ]; }
     ''

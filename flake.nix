@@ -17,48 +17,38 @@
     fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Fresher nixpkgs for the coding CLIs only — codex and claude-code both
-    # move faster than the main pin. Tracks master because nixos-unstable
-    # lags them by days. Drop this (and the overlay below) whenever the main
-    # nixpkgs is updated past what it provides.
+    # Track newer coding CLIs independently of the system package pin.
     nixpkgs-cli.url = "github:NixOS/nixpkgs/master";
   };
 
-  outputs = { self, nixpkgs, home-manager, nix-darwin, nvim, fenix, nixpkgs-cli, ... }:
+  outputs = { nixpkgs, home-manager, nix-darwin, nvim, fenix, nixpkgs-cli, ... }:
     let
       system = "x86_64-linux";
-      cliOverlay = final: prev:
+      cliOverlay = _: prev:
         # Imported rather than taken from legacyPackages so the unfree
         # allowance below applies — claude-code is unfree.
         let fresh = import nixpkgs-cli {
               inherit (prev.stdenv.hostPlatform) system;
               config.allowUnfree = true;
             };
-        in {
-          codex = fresh.codex;
-          claude-code = fresh.claude-code;
-        };
-    in {
-      # Laptop configuration
-      nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+        in { inherit (fresh) codex claude-code; };
+
+      sharedModule = {
+        _module.args = { inherit nvim; };
+        nixpkgs.overlays = [ fenix.overlays.default cliOverlay ];
+      };
+      mkNixos = host: nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
-          ./machines/nixos/configuration.nix
+          (./machines + "/${host}/configuration.nix")
           home-manager.nixosModules.home-manager
-          { _module.args = { inherit nvim; }; }
-          { nixpkgs.overlays = [ fenix.overlays.default cliOverlay ]; }
+          sharedModule
         ];
       };
-
-      # Desktop configuration
-      nixosConfigurations.desktop = nixpkgs.lib.nixosSystem {
-        inherit system;
-        modules = [
-          ./machines/desktop/configuration.nix
-          home-manager.nixosModules.home-manager
-          { _module.args = { inherit nvim; }; }
-          { nixpkgs.overlays = [ fenix.overlays.default cliOverlay ]; }
-        ];
+    in {
+      nixosConfigurations = {
+        nixos = mkNixos "nixos";
+        desktop = mkNixos "desktop";
       };
 
       # Mac configuration (Apple Silicon)
@@ -67,8 +57,7 @@
         modules = [
           ./machines/mac/configuration.nix
           home-manager.darwinModules.home-manager
-          { _module.args = { inherit nvim; }; }
-          { nixpkgs.overlays = [ fenix.overlays.default cliOverlay ]; }
+          sharedModule
         ];
       };
     };

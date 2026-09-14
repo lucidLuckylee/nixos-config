@@ -1,42 +1,17 @@
 { ... }:
 
-# Firefox, themed to match the rest of the session.
-#
-# Firefox has no notion of a colour scheme it can be handed, so this works in
-# two layers: preferences push it onto its built-in dark theme (which fixes
-# menus, the sidebar and every internal about: page), and a userChrome sheet
-# then repaints the toolbar, tab strip and address bar in the actual palette.
-# Content pages are left alone apart from the blank-page background — recolouring
-# the web itself is a reader-mode job, not a theme.
-#
-# ── Why the profile path is spelled out ─────────────────────────────
-# This machine already had a hand-made profile at x6xn4xbs.default carrying
-# ~1.3 GB of history, logins and extensions. home-manager defaults a profile's
-# directory to its attribute name, so calling this profile anything else would
-# have generated a profiles.ini pointing at a brand-new empty directory and
-# quietly left the real one orphaned on disk. Naming id/path/name to match what
-# was already there means the generated profiles.ini is identical to the
-# original and Firefox opens the same profile it always did.
-#
-# The first rebuild still needs the pre-existing ~/.mozilla/firefox/profiles.ini
-# moved aside, because home-manager will not clobber a file it does not own.
+# Firefox theme and preferences. Preserve the existing profile directory
+# so history, logins and extensions remain available.
 
 let
   theme = import ./colors.nix;
-  colors = theme.colors;
-  accent = theme.accent;
-  dotGap = theme.dotGap;
+  inherit (theme) colors accent dotGap;
 
 in {
   programs.firefox = {
     enable = true;
 
-    # Pinned rather than left to default. home-manager is midway through moving
-    # this from ~/.mozilla/firefox to $XDG_CONFIG_HOME/mozilla/firefox, and
-    # which one you get is keyed off home.stateVersion. The real profile is at
-    # the legacy path, so bumping stateVersion to 26.05 later would otherwise
-    # silently repoint Firefox at an empty directory. Stating it outright means
-    # that bump stays a no-op here.
+    # Keep the existing profile location across Home Manager default changes.
     configPath = ".mozilla/firefox";
 
     profiles.default = {
@@ -61,17 +36,7 @@ in {
         # Do not let a site's own prefers-color-scheme land on light.
         "layout.css.prefers-color-scheme.content-override" = 0;
 
-        # ── The new tab page ──────────────────────────────────────────
-        # about:newtab is a *privileged* page: it renders from
-        # resource://activity-stream, and Firefox refuses to apply
-        # userContent.css to it. That is why styling it from CSS did nothing and
-        # new tabs stayed on Firefox's default #1c1b22 grey instead of the
-        # background Ghostty uses.
-        #
-        # Since the page cannot be restyled, it is switched off. New tabs then
-        # land on about:blank, which is not privileged and takes its colour from
-        # browser.display.background_color above — the same value the terminal
-        # is painted in.
+        # Use about:blank for new tabs so userContent.css can theme them.
         "browser.newtabpage.enabled" = false;
         "browser.startup.homepage" = "about:blank";
         "browser.startup.page" = 1;
@@ -83,37 +48,18 @@ in {
         "browser.newtabpage.activity-stream.feeds.topsites" = false;
         "browser.newtabpage.activity-stream.feeds.section.topstories" = false;
 
-        # ── Mechanical ────────────────────────────────────────────────
-        # Compact density and no cosmetic animation. These are the supported
-        # prefs for "make the chrome tighter and stop it easing about"; doing
-        # the same thing from CSS means fighting Firefox's own transitions on
-        # every release, so set them here and let userChrome handle only the
-        # geometry Firefox does not expose as a pref.
+        # Use compact density and reduced animation through supported preferences.
         "browser.uidensity" = 1;              # 0 normal, 1 compact, 2 touch
         "browser.compactmode.show" = true;    # unhide the setting in the UI
         "toolkit.cosmeticAnimations.enabled" = false;
         "browser.tabs.hoverPreview.enabled" = false;
         "browser.urlbar.accessibility.tabToSearch.announceResults" = false;
 
-        # Open the portal's file chooser rather than Firefox's own GTK one, so
-        # uploading a file here shows the same dialog Telegram shows. 1 = always;
-        # the default of 2 ("auto") only uses the portal inside a sandbox, which
-        # this is not, so it would otherwise never trigger.
+        # Always use the shared portal file picker (1 = always, 2 = sandbox only).
         "widget.use-xdg-desktop-portal.file-picker" = 1;
       };
 
-      # ── Chrome ────────────────────────────────────────────────────
-      # Firefox exposes its chrome colours as --lwt-* / --toolbar-* custom
-      # properties, the same ones a lightweight theme would set. Overriding
-      # those rather than restyling individual widgets is what keeps this from
-      # breaking on every Firefox release: the variables are a stable contract,
-      # the internal DOM structure is not.
-      #
-      # The look is deliberately hard-edged: every corner radius is zeroed,
-      # separators are 1px hairlines rather than gaps, and the address bar is
-      # marked with a flat bracket instead of a soft halo. Firefox ships a
-      # rounded, animated chrome that reads as consumer software; squaring it
-      # off is what makes it sit next to a tiling WM and a terminal.
+      # Theme Firefox through its colour variables and targeted widget overrides.
       userChrome = ''
         :root {
           /* The vivid set from ./colors.nix rather than the restrained one the
@@ -379,11 +325,7 @@ in {
         }
       '';
 
-      # ── Content ───────────────────────────────────────────────────
-      # Firefox's own blank pages get the full background treatment, because
-      # the default white is jarring against a scheme this dark. Real sites
-      # keep their own colours and are only given the raster overlay below —
-      # recolouring the web itself is a reader-mode job, not a theme.
+      # Style internal blank pages and apply the content tint below.
       userContent = ''
         @-moz-document url("about:blank"),
                        url("about:newtab"),

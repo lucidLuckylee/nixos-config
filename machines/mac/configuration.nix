@@ -1,11 +1,6 @@
 { config, pkgs, nvim, ... }:
 
-# nix-darwin configuration for the M4 Mac ("mac").
-#
-# This machine shares home/shared.nix with the NixOS hosts. What it does *not*
-# share is the Wayland session — macOS owns the display server, so there is no
-# Sway here. The system.defaults block below is the substitute: it pins the
-# macOS behaviours that otherwise have to be hunted down in System Settings.
+# M4 Mac configuration. Shared home settings live in ../../home/shared.nix.
 
 {
   imports = [
@@ -19,11 +14,7 @@
 
   networking.hostName = "mac";
 
-  # Nix itself is managed by the Determinate installer, which runs its own
-  # daemon. nix-darwin's Nix management conflicts with it and aborts activation
-  # ("error: Determinate detected"), so hand ownership over. Consequence: the
-  # nix.* settings options are unavailable here — edit /etc/nix/nix.custom.conf
-  # for substituters, trusted-users and friends.
+  # Determinate manages the Nix daemon; disable nix-darwin's competing service.
   nix.enable = false;
 
   users.users.lee = {
@@ -134,13 +125,8 @@
     loginwindow.GuestEnabled = false;
   };
 
-  # Ctrl+1..9 to switch between Spaces is not enabled by default and cannot be
-  # set reliably from here — the keys live in com.apple.symbolichotkeys as
-  # opaque numeric IDs. Turn them on once by hand:
-  #   System Settings → Keyboard → Keyboard Shortcuts → Mission Control
-  #   → Mission Control → check "Switch to Desktop 1..9"
-  # Combined with mru-spaces = false above, that gets you fixed, directly
-  # addressable workspaces without a third-party window manager.
+  # Enable Ctrl+1..9 for Spaces manually in Keyboard Shortcuts → Mission Control;
+  # these symbolic hotkeys cannot be set reliably through system.defaults.
 
   # ── Homebrew ────────────────────────────────────────────────────────
   # GUI applications stay on Homebrew; this block just makes the list
@@ -154,11 +140,7 @@
       autoUpdate = false;
       upgrade = false;
     };
-    # Exactly the casks already installed, so the first activation is a no-op.
-    # Firefox and Discord are deliberately absent: both were installed by hand
-    # into /Applications, and `brew install --cask` refuses to write over an
-    # existing app bundle. To bring them under Homebrew, delete the app first,
-    # then add it here.
+    # Manage the existing casks; Firefox and Discord are installed separately.
     casks = [
       "alacritty"
       "karabiner-elements"

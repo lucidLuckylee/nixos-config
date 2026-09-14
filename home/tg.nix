@@ -1,40 +1,13 @@
 { pkgs, ... }:
 
-# tg — a terminal Telegram client, themed to the session.
-#
-# ── Why this exists alongside telegram-desktop ──────────────────────
-# Telegram Desktop's theme format only carries a background image for the chat
-# pane; its sidebar, dialog list and settings take flat colours and nothing
-# else, so the raster stops at the chat area and cannot go further.
-#
-# A terminal client sidesteps that entirely. tg draws with curses, which means
-# every colour it uses is one of the terminal's sixteen — the palette Ghostty
-# is already configured with in ./shared.nix — and it inherits the dot raster
-# for free, because the raster is the terminal's background image and tg is
-# simply text drawn on top of it. Nothing here has to reimplement the theme.
-#
-# What is left to configure is which of those sixteen slots get used, which is
-# what USERS_COLORS below does.
+# Terminal Telegram client, using the terminal palette and raster.
 
 let
   theme = import ./colors.nix;
-  colors = theme.colors;
-  accent = theme.accent;
+  inherit (theme) colors accent;
 
-  # ── Viewing an image without leaving the terminal ───────────────────
-  # chafa renders into the terminal itself, so a photo appears in the same
-  # rastered surface as everything else rather than throwing a separate window
-  # onto another workspace.
-  #
-  # The output format is deliberately not pinned. chafa probes the terminal and
-  # picks the best it answers to — the kitty graphics protocol gives true pixels
-  # where it is supported, and it falls back to character art where it is not.
-  # Hardcoding `-f kitty` would look sharper right up until something does not
-  # implement it.
-  #
-  # The pause at the end is the whole reason this is a script. tg runs the
-  # handler inside `suspend()` and redraws its UI the moment the command exits,
-  # so a bare `chafa file` would paint the image and immediately erase it.
+  # Wait before returning to tg, which redraws immediately when the viewer exits.
+  # Let chafa detect the terminal's supported graphics format.
   viewImage = pkgs.writeShellApplication {
     name = "tg-view-image";
     runtimeInputs = [ pkgs.chafa ];
@@ -60,25 +33,10 @@ let
     text/*; ''${PAGER:-less} %s; needsterminal
     application/*; ${pkgs.xdg-utils}/bin/xdg-open %s
   '';
-  # Note there is no `*/*` line. mailcap only wildcards the subtype — `type/*`
-  # matches, `*/*` is not a pattern the format has, and a line using it is
-  # parsed and then never matched. Verified: with `*/*` present,
-  # findmatch("application/zip") still returned no handler. `application/*` is
-  # what actually catches the zips and octet-streams.
+  # mailcap supports type/*, not */*; application/* handles other attachments.
 
-  # ── The phone number ────────────────────────────────────────────────
-  # tdlib needs it before login can start, and the library underneath prompts
-  # for the SMS code but never for the number itself.
-  #
-  # It stays out of this file: personal data, public repository, and conf.py is
-  # a read-only store symlink that could not be edited afterwards anyway. It
-  # lives in ~/.config/tg/phone (0600, untracked) instead, and the config below
-  # asks for it the first time and writes it there — which is what tg itself
-  # does when it has no config, and is only reproduced here because shipping a
-  # conf.py is what stopped tg from doing it.
-  #
-  # runpy.run_path only promotes UPPERCASE names into tg's config, so the
-  # lowercase helpers below are invisible to it.
+  # Prompt for the phone number before curses starts and keep it outside the
+  # store in ~/.config/tg/phone (0600). tg imports only uppercase config names.
   configText = ''
     # Generated from home/colors.nix — do not edit by hand.
     import os
@@ -88,14 +46,7 @@ let
     if os.path.isfile(_phone_file):
         PHONE = open(_phone_file).read().strip()
     else:
-        # tg normally asks for the number on first run and writes it into the
-        # conf.py it generates. Shipping a conf.py from Nix suppresses that,
-        # because tg only prompts when no config exists at all — so the prompt
-        # is reproduced here rather than pushed onto the user as a file to
-        # create by hand.
-        #
-        # This runs during runpy.run_path, before curses starts, which is the
-        # same point tg's own prompt would have run at.
+        # A managed conf.py bypasses tg's first-run phone prompt, so supply it here.
         print("Enter your phone number in international format "
               "(including country code)")
         PHONE = input("phone> ").strip()
@@ -106,25 +57,14 @@ let
                   "w") as _f:
             _f.write(PHONE + "\n")
 
-    # Usernames are coloured by picking from this tuple. The default is
-    # range(2, 16) — every colour the terminal has, which in this palette means
-    # names showing up in warning-yellow and urgent-red. Restricted here to the
-    # cyan half of the palette so the chat stays in one key, and so red and
-    # yellow keep meaning "something is wrong" the way they do everywhere else
-    # in the session.
-    #
-    #   14 bright cyan     6 cyan       12 bright blue    4 blue
-    #   10 bright green    2 green      13 bright magenta 5 magenta
+    # Use cool ANSI colours for usernames, reserving red and yellow for alerts.
     USERS_COLORS = (14, 6, 12, 4, 10, 2, 13, 5)
 
     # Match the editor used everywhere else rather than the `vi` default.
     EDITOR = "nvim"
     LONG_MSG_CMD = "nvim + -c 'startinsert' {file_path}"
 
-    # tg defaults to `ranger --choosefile=...`, which is not installed here and
-    # fails silently with "No file was selected". fzf is added below and does
-    # the same job in one line: it writes the chosen path to the temp file tg
-    # then reads back.
+    # Use fzf instead of tg's default ranger file picker.
     FILE_PICKER_CMD = "sh -c 'fzf > {file_path}'"
 
     VIEW_TEXT_CMD = "less"
@@ -156,10 +96,7 @@ in {
   # front keeps that off the screen.
   home.file.".cache/tg/files/.keep".text = "";
 
-  # fzf in the same palette, so the picker tg opens does not arrive as the one
-  # piece of default-coloured UI in an otherwise themed terminal. This is
-  # session-wide rather than tg-only — it is the same fzf either way — and
-  # would sit equally well in ./shared.nix if the Mac ever wants it.
+  # Use the shared palette for fzf.
   home.sessionVariables.FZF_DEFAULT_OPTS = builtins.concatStringsSep " " [
     "--color=bg+:${accent.panel}"
     "--color=bg:-1"

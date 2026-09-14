@@ -1,6 +1,12 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 
 {
+  home-manager = {
+    backupFileExtension = "backup";
+    useGlobalPkgs = true;
+    useUserPackages = true;
+  };
+
   nixpkgs.config.allowUnfree = true;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.settings.trusted-users = [ "root" "lucy" ];
@@ -11,17 +17,9 @@
     "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
   ];
 
-  # GitHub API auth so `nixos-rebuild`/`nix flake update` don't hit the
-  # unauthenticated rate limit. The token is kept OUT of the Nix store (and
-  # git). Create /etc/nix/access-tokens.conf once (reuses the `gh` login token):
-  #
-  #   printf 'access-tokens = github.com=%s\n' "$(gh auth token)" \
-  #     | sudo tee /etc/nix/access-tokens.conf >/dev/null
-  #   sudo chown root:wheel /etc/nix/access-tokens.conf
-  #   sudo chmod 640 /etc/nix/access-tokens.conf
-  #
-  # Re-run if the gh token rotates. `!include` (leading !) silently no-ops if
-  # the file is absent, so this is safe before the file exists.
+  # Optional GitHub credentials stay outside the store in /etc/nix/access-tokens.conf.
+  # Use `access-tokens = github.com=TOKEN`, owned by root:wheel with mode 0640.
+  # The !include tolerates a missing file.
   nix.extraOptions = ''
     !include /etc/nix/access-tokens.conf
   '';
@@ -98,12 +96,7 @@
   # USB auto-mounting
   services.udisks2.enable = true;
 
-  # Battery state over D-Bus, for the bar's battery pill (see
-  # ../home/quickshell/Bar.qml). The old i3status module read
-  # /sys/class/power_supply directly and so needed no daemon; UPower is what
-  # replaces that, and it is also what reports the charge level of connected
-  # Bluetooth devices. Without it the shell logs "Could not start UPower" and
-  # the pill is simply absent.
+  # Expose system and Bluetooth battery state to Quickshell over D-Bus.
   services.upower.enable = true;
 
   environment.etc."distrobox/distrobox.conf".text = ''

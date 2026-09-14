@@ -22,13 +22,7 @@ in {
     distrobox
   ];
 
-  # Screen sharing (Firefox/Meet, Zoom, OBS) goes through the wlroots portal.
-  # It is already pulled in by programs.sway, but it ships a systemd unit whose
-  # PATH holds only coreutils/findutils/grep/sed/systemd — none of the output
-  # choosers it probes for (wmenu, wofi, rofi, bemenu, fuzzel, slurp). Every
-  # request therefore ended in "wlroots: no output found": the browser's own
-  # permission prompt succeeded, then no stream ever arrived. Naming slurp by
-  # absolute store path sidesteps the PATH entirely — click an output to share.
+  # The portal's restricted PATH omits output choosers; use slurp's store path.
   xdg.portal.wlr = {
     enable = true;
     settings.screencast = {
@@ -37,15 +31,7 @@ in {
     };
   };
 
-  # Nothing more is needed for the file chooser: programs.sway already pulls in
-  # xdg-desktop-portal-gtk (wayland-session.nix, enableGtkPortal defaults true)
-  # and already routes every interface to it except ScreenCast/Screenshot, which
-  # stay on wlr. An explicit block here only conflicted with that.
-  #
-  # The pickers looked different despite that because neither app was asking the
-  # portal: Firefox's widget.use-xdg-desktop-portal.file-picker defaults to
-  # "auto", which means sandbox-only, and Qt needs to be told separately. Both
-  # are handled in ../home (./firefox.nix and ./gtk.nix).
+  # Sway supplies the GTK file portal. Firefox and Qt opt in through home settings.
 
   # Required to start up sway
   services.seatd.enable = true;

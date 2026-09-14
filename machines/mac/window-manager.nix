@@ -1,31 +1,14 @@
 { config, pkgs, lib, ... }:
 
-# yabai + skhd, managed as launchd agents so they start at login.
-#
-# Previously these were started by hand. Three competing LaunchAgents had
-# accumulated in ~/Library/LaunchAgents — com.koekeishiya.yabai (pointing at a
-# manually installed ~/.local/bin/yabai, never loaded), com.jackielii.skhd and
-# homebrew.mxcl.skhd-zig (both loaded, both trying to own skhd). Those must be
-# removed, or they will fight with the agents nix-darwin installs; see the
-# activation notes in the README.
-#
-# ── Accessibility permission ───────────────────────────────────────────
-# macOS gates window management behind Accessibility, granted per binary path.
-# Because Nix store paths change on every version bump, the grant is invalidated
-# whenever yabai or skhd is updated, and both must be re-approved under
-# System Settings → Privacy & Security → Accessibility. That is the standing
-# cost of managing them with Nix rather than Homebrew; the payoff is that they
-# actually start on boot.
+# Manage yabai and skhd with launchd. Remove competing manually installed
+# agents. After binary updates, renew their macOS Accessibility permissions.
 
 let
   theme = import ../../home/colors.nix;
-  opacity = theme.opacity;
+  inherit (theme) opacity;
 
-  # Reproduces the nix-darwin yabai module's config-file generation. Same
-  # helper, same file name, same content — so writeScript yields the very same
-  # store path the module itself passes to `-c`. Done here rather than reading
-  # launchd.user.agents.yabai.serviceConfig.ProgramArguments, which would
-  # recurse, since that option is what gets overridden below.
+  # Match nix-darwin's yabairc generation without reading the overridden
+  # ProgramArguments, which would cause infinite recursion.
   toYabaiConfig = opts:
     lib.concatStringsSep "\n"
       (lib.mapAttrsToList (p: v: "yabai -m config ${p} ${toString v}") opts);
@@ -37,25 +20,8 @@ let
     (if yabaiCfg.config != { } then "${toYabaiConfig yabaiCfg.config}" else "")
     + lib.optionalString (yabaiCfg.extraConfig != "") ("\n" + yabaiCfg.extraConfig + "\n"));
 
-  # ── Waiting for the Nix Store volume ────────────────────────────────
-  # The store is a separate, encrypted APFS volume that determinate-nixd has to
-  # unlock before it can be mounted, and that lands *after* the LaunchAgents
-  # fire. Observed on this machine: boot at 10:16:17, agents attempted at
-  # 10:16:26.5 and refused with
-  #   Could not find and/or execute program specified by service:
-  #   2: No such file or directory: /nix/store/…/bin/yabai
-  # with the volume finally mounting at 10:16:30.0 — three and a half seconds
-  # too late. launchd treats a missing executable as EX_CONFIG (78) and gives
-  # up permanently rather than retrying, so KeepAlive never rescues it and the
-  # agents stay dead until something bootstraps them by hand.
-  #
-  # Fix: make the program /bin/sh, which lives on the root volume and is
-  # therefore always executable, and have it wait for the real binary before
-  # exec'ing it. `exec` replaces the process image, so the running program is
-  # yabai itself — verified that the Accessibility grant still applies and
-  # `yabai -m query` works through the wrapper.
-  #
-  # The wait is bounded; on timeout the exec fails and KeepAlive retries.
+  # The encrypted Nix volume may mount after launchd starts. Use /bin/sh to
+  # wait for the executable; a timeout lets KeepAlive retry.
   waitThenExec = binary: args: [
     "/bin/sh"
     "-c"
@@ -69,20 +35,8 @@ let
     ''
   ];
 in {
-  # ── Code signing ───────────────────────────────────────────────────
-  # On Apple Silicon the linker ad-hoc signs every binary it produces, leaving
-  # the signature flagged `linker-signed` (0x20002). macOS will not persist a
-  # TCC grant for a linker-signed executable: the process asks for
-  # Accessibility, is refused, and never appears in the Privacy & Security list
-  # with a toggle at all — so there is no way to approve it. With KeepAlive set
-  # the agent then relaunches every ten seconds, asks again, and exits again.
-  #
-  # Re-signing with a plain ad-hoc signature clears the flag (0x20002 → 0x2)
-  # and the binaries become grantable. This is done at build time with
-  # nixpkgs' sigtool, verified to produce flags=0x2(adhoc).
-  #
-  # Note the grant is keyed to the binary's code hash, so updating yabai or
-  # skhd will require re-approving them in System Settings.
+  # Replace linker-signed signatures with plain ad-hoc signatures so macOS can
+  # persist Accessibility grants. Binary updates still require approval.
   nixpkgs.overlays = [
     (final: prev: {
       yabai = prev.yabai.overrideAttrs (old: {
@@ -101,10 +55,7 @@ in {
   services.yabai = {
     enable = true;
 
-    # The scripting addition is what yabai needs for Spaces manipulation
-    # (moving windows between Spaces, instant Space switching). It requires
-    # SIP to be partially disabled and does not work on macOS 26 at all, so
-    # it stays off and the Space bindings below are absent as a result.
+    # Spaces manipulation requires yabai's scripting addition and reduced SIP.
     enableScriptingAddition = false;
 
     config = {
@@ -162,10 +113,7 @@ in {
   # entire point of moving these off the hand-run LaunchAgents.
   launchd.user.agents.skhd.serviceConfig.RunAtLoad = true;
 
-  # Neither module sets a log path, so when these fail under launchd they fail
-  # silently: `launchctl print` reports exit code 0 and the unified log shows
-  # only XPC noise. The actual message ("yabai: could not access accessibility
-  # features! abort..") goes nowhere. Capture it.
+  # Persist agent output for diagnosing launch failures.
   launchd.user.agents.yabai.serviceConfig = {
     StandardOutPath = "/tmp/yabai.out.log";
     StandardErrorPath = "/tmp/yabai.err.log";
@@ -251,12 +199,7 @@ in {
       cmd + ctrl - h : yabai -m display --focus west || yabai -m display --focus east
       cmd + ctrl - l : yabai -m display --focus east || yabai -m display --focus west
 
-      # ── Spaces ──────────────────────────────────────────────────────
-      # Deliberately unbound. Switching Spaces and moving windows between them
-      # both need the scripting addition, which is unavailable on macOS 26.
-      # Use the native Ctrl+1..9 shortcuts instead (System Settings → Keyboard
-      # → Keyboard Shortcuts → Mission Control), which work because
-      # dock.mru-spaces = false pins the Space order.
+      # Use native macOS shortcuts for Spaces; scripting-addition shortcuts stay unbound.
     '';
   };
 }

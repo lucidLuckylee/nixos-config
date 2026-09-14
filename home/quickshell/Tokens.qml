@@ -1,23 +1,8 @@
-// How big things are.
-//
-// Material 3's shape and spacing scales, the same values caelestia-dots/shell
-// builds from. Sizes come from a scale for the same reason motion comes from
-// one (see Motion.qml): a radius or a gap picked by eye is a radius nobody can
-// match later, and a shell whose corners are 2px here and 9px there reads as
-// unfinished no matter how carefully each one was chosen.
-//
-// The scale is deliberately coarse. Two adjacent steps are visibly different,
-// so there is never a reason to reach for a number in between — if something
-// looks wrong at `medium` it wants `large`, not 14.
-//
-// `full` means "as round as this can get": handed to a radius it produces a
-// stadium, whatever the height.
+// Shared Material 3 size and spacing tokens.
 
 pragma Singleton
 
 import Quickshell
-// QtObject is a QtQml type, not a QML language primitive: without this import
-// every group below fails with "QtObject is not a type".
 import QtQml
 
 Singleton {
@@ -51,10 +36,6 @@ Singleton {
         readonly property int extraLarge: 28
     }
 
-    // The type scale. Larger than what the shell used to run at — a bar set in
-    // 9px was legible but read as a status line rather than as part of the
-    // desktop's furniture, which is most of what made it feel thin next to the
-    // shells this borrows from.
     readonly property QtObject fontSize: QtObject {
         readonly property int small: 11
         readonly property int smaller: 12

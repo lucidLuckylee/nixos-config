@@ -1,17 +1,5 @@
-# Claude Code / Codex settings and MCP (Model Context Protocol) servers
-#
-# Claude: settings (model, permissions, plugins) live in
-# ~/.claude/settings.json and MCP servers in ~/.claude.json. Both files also
-# hold state Claude itself writes at runtime, so neither is symlinked from the
-# store — activation scripts merge the Nix-owned keys into whatever is already
-# there.
-#
-# Codex: [mcp_servers] in ~/.codex/config.toml takes the same
-# {command, args} shape Claude uses, so the single mcpServers attrset below
-# feeds both tools. Like ~/.claude.json, config.toml holds runtime state
-# (Codex records which directories are trusted there), so it too is merged
-# by an activation script rather than symlinked.
-#
+# Shared MCP server definitions for Claude and Codex. Activation merges managed
+# settings into writable files so application state and trust entries survive.
 { pkgs, lib, config, ... }:
 let
   npx = "${pkgs.nodejs}/bin/npx";
@@ -45,7 +33,8 @@ let
 
   # ── Claude Code global settings (merged into ~/.claude/settings.json) ──
   claudeSettings = {
-    model = "opus";
+    model = "fable";
+    outputStyle = "Concise";
 
     permissions = {
       allow = [
@@ -53,7 +42,7 @@ let
         "WebFetch(domain:raw.githubusercontent.com)"
         "WebSearch"
       ];
-      defaultMode = "default";
+      defaultMode = "auto";
     };
 
     sandbox = {
@@ -91,12 +80,7 @@ let
       args = [];
     };
 
-    # Bitcoin: key gen, address validation, tx decoding, blockchain queries
-    #
-    # No @latest: an explicit tag makes npx resolve it against the registry on
-    # every launch, so startup carries a network roundtrip even when the
-    # package is already in the npx cache. Untagged, the cached copy runs
-    # as-is.
+    # Bitcoin tools, downloaded through npx.
     bitcoin = {
       command = npx;
       args = [ "-y" "bitcoin-mcp" ];
@@ -142,16 +126,7 @@ let
       args = [ "-y" "@upstash/context7-mcp" ];
     };
 
-    # Playwright: browser automation (navigate, click, screenshot, fill forms)
-    #
-    # Deliberately NOT `npx -y @playwright/mcp`. That always resolves to the
-    # latest release, whose bundled Playwright drifts from the browser
-    # revisions in pkgs.playwright-driver — at time of writing @playwright/mcp
-    # 0.0.79 wants Playwright 1.63.0-alpha while playwright-driver ships
-    # 1.61.1, and the mismatch fails at launch with "Looks like Playwright was
-    # just installed or updated. Please run: npx playwright install".
-    # The nixpkgs package is version-locked to the driver and sets
-    # PLAYWRIGHT_BROWSERS_PATH itself.
+    # Use the packaged Playwright MCP server.
     playwright = {
       command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
       args = [];
@@ -164,25 +139,12 @@ let
   claudeManagedSettings = pkgs.writeText "claude-managed-settings.json"
     (builtins.toJSON claudeSettings);
 
-  # ── Codex configuration (merged into ~/.codex/config.toml) ────────
-  # Same shape as Claude's, so the mcpServers attrset above is reused
-  # verbatim. Only the keys named here are owned by Nix; see the merge
-  # script below for what survives from the imperative side.
+  # Reuse the server definitions for Codex.
   tomlFormat = pkgs.formats.toml { };
   codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
-    # Independent of the per-server timeout below: this is how long session
-    # startup waits for optional servers before reporting them "not
-    # initialized" (they still finish connecting in the background). The
-    # 1s default is shorter than a warm npx launch, so every session
-    # started with a wall of spurious warnings. Key verified against the
-    # binary's config parser — it is real, though undocumented.
+    # Allow optional servers time to finish startup.
     mcp_optional_startup_grace_ms = 10000;
-    # Codex gives a server 10s from spawn to the initialize response, then
-    # closes its stdin — which is exactly how the bitcoin server died: Codex
-    # launches every npx server here simultaneously on session start, and on
-    # a cold npx cache the straggler of that stampede can take longer than
-    # 10s to first byte (measured 1.4s warm). Claude's own timeout is
-    # roomier, so the raise lives in this projection, not in mcpServers.
+    # Allow npm downloads and compilation before the MCP initialize response.
     mcp_servers =
       lib.mapAttrs (_: s: s // { startup_timeout_sec = 60; }) mcpServers;
   };
@@ -219,13 +181,7 @@ in {
     rust-analyzer-mcp
   ];
 
-  # Settings — the keys above are merged into ~/.claude/settings.json
-  #
-  # Not home.file: that renders the file as a read-only store symlink, and
-  # Claude Code writes to it at runtime — picking a reasoning effort level
-  # stores "effortLevel" there — so /effort died with
-  # "EROFS: read-only file system". Same deal as ~/.claude.json and Codex's
-  # config.toml below: Nix owns the keys it declares, Claude keeps the rest.
+  # Merge managed Claude settings recursively, preserving other preferences.
   home.activation.setupClaudeSettings =
     lib.hm.dag.entryAfter [ "writeBoundary" "linkGeneration" ] ''
       CLAUDE_SETTINGS="$HOME/.claude/settings.json"
@@ -246,13 +202,7 @@ in {
       fi
     '';
 
-  # ── Codex ─────────────────────────────────────────────────────────
-  # Only the package comes from programs.codex. Letting the module render
-  # settings turns config.toml into a read-only store symlink, and Codex
-  # writes to that file at runtime — every "trust this folder?" answer goes
-  # into its [projects] table — so the trust prompt died with
-  # "failed to persist config.toml". The activation script below is the
-  # Claude treatment instead: Nix owns mcp_servers, Codex keeps the rest.
+  # Keep config.toml writable; Codex stores project trust alongside MCP settings.
   programs.codex.enable = true;
 
   home.activation.setupCodexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

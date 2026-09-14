@@ -1,4 +1,4 @@
-{ config, pkgs, nvim, ... }:
+{ config, ... }:
 
 {
   imports = [
@@ -9,7 +9,6 @@
     ../../modules/overlays.nix
   ];
 
-  # Hostname
   networking.hostName = "desktop";
 
   # ── NVIDIA GPU ────────────────────────────────────────────────────
@@ -24,11 +23,5 @@
   # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
   hardware.enableRedistributableFirmware = true;
 
-# Home Manager configuration
-  home-manager.backupFileExtension = "backup";
-  home-manager.useGlobalPkgs = true;
-  home-manager.useUserPackages = true;
-  home-manager.users.lucy = {
-    imports = [ ../../home/desktop.nix ];
-  };
+  home-manager.users.lucy.imports = [ ../../home/desktop.nix ];
 }

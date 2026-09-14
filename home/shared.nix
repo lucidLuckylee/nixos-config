@@ -1,30 +1,16 @@
 { config, pkgs, lib, ... }:
 
-# Cross-platform home-manager configuration.
-#
-# Everything in here must evaluate on both NixOS and nix-darwin. Anything that
-# needs a Wayland session, systemd, or Linux-only packages belongs in
-# ./linux.nix; anything macOS-specific belongs in ./darwin.nix.
+# Cross-platform home configuration. Platform-specific settings live in
+# linux.nix and darwin.nix.
 
 let
   theme = import ./colors.nix;
-  colors = theme.colors;
-  accent = theme.accent;
-  opacity = theme.opacity;
+  inherit (theme) colors accent opacity;
 
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
 
-  # ── The raster dot tile ─────────────────────────────────────────────
-  # Generated rather than committed: it is a binary that would otherwise sit in
-  # the repo forever, and it is fully described by three numbers. Regenerating
-  # it is also how the dot colour stays tied to the palette above — change
-  # accent.primary and the tile follows on the next rebuild.
-  #
-  # One opaque pixel in an otherwise transparent square, tiled by the terminal.
-  # dotGap is the square's edge in physical pixels, so it is also the spacing
-  # between dots. It lives in ./colors.nix so Firefox's CSS raster uses the
-  # same pitch.
-  dotGap = theme.dotGap;
+  # One opaque dot per transparent tile, using the shared raster pitch.
+  inherit (theme) dotGap;
   dotTile = pkgs.runCommand "raster-dot-${toString dotGap}.png"
     { nativeBuildInputs = [ pkgs.imagemagick ]; }
     ''
@@ -32,15 +18,7 @@ let
         -fill '${accent.primary}' -draw 'point 0,0' PNG32:$out
     '';
 
-  # ── The copy tick ───────────────────────────────────────────────────
-  # Drawn rather than pulled from an icon theme. `-gtk-icontheme()` would make
-  # the glyph depend on adwaita-icon-theme being reachable through
-  # XDG_DATA_DIRS, which Ghostty's wrapper does not put there itself, and this
-  # way the stroke is accent.primary by construction the same way the dot tile
-  # above is.
-  #
-  # Authored at 40px and painted at 20 (see background-size in the stylesheet
-  # below) so the tick survives a HiDPI output instead of being upscaled.
+  # Embed the accent-coloured tick without depending on an icon-theme lookup.
   copyTick = pkgs.writeText "ghostty-copy-tick.svg" ''
     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 20 20">
       <path d="M4.25 10.5 L8.25 14.5 L15.75 6" fill="none" stroke="${accent.primary}"
@@ -48,37 +26,8 @@ let
     </svg>
   '';
 
-  # ── Ghostty's GTK stylesheet ────────────────────────────────────────
-  # Loaded through gtk-custom-css further down, and Linux-only: all of this
-  # styles a libadwaita widget that the macOS build does not have.
-  #
-  # Everything here targets the toast, which is the only GTK chrome Ghostty
-  # draws over the terminal surface. Untouched it is a grey pill reading
-  # "Copied to clipboard" with a close button that the theme renders as a hard
-  # teal square — the one piece of the terminal that ignores the palette.
-  #
-  # The text is redundant. Nothing else in Ghostty puts a pill there and it
-  # only ever appears immediately after the copy binding, so it is replaced by
-  # a tick and the pill collapses to a disc around it.
-  #
-  # The widget tree below is libadwaita's, and is what the selectors assume:
-  #
-  #   toast                 the pill
-  #   ├─ widget             an AdwBin wrapping the title
-  #   │  └─ label           "Copied to clipboard"
-  #   ├─ button             an action button, unused here
-  #   └─ button             the close button
-  #
-  # Ghostty's other toast — "Reloaded the configuration" — becomes the same
-  # tick. That is left deliberately: the two are raised by different keys, so
-  # what was just asked for is never in doubt, and a tick reads as "that
-  # worked" for both. Config *errors* are not toasts, they get their own
-  # window, so nothing failure-shaped is being disguised as a success here.
-  #
-  # Note the file:// on the url(). Ghostty reads the stylesheet itself and
-  # hands GTK a string rather than a file, so the provider has no base file to
-  # resolve against and a bare /nix/store path silently loads nothing — the
-  # disc renders empty, with no CSS error to say why.
+  # Linux-only Ghostty toast styling. Use a file:// URL because Ghostty loads
+  # the CSS as a string without a base directory.
   ghosttyCss = pkgs.writeText "ghostty.css" ''
     toast {
       /* A disc rather than a pill: the tick is all that is left inside. */
@@ -131,15 +80,7 @@ let
     rust-analyzer
   ]);
 
-  # Clipboard bridge for the ble.sh vi-register hook below. Each platform keeps
-  # its native call shape rather than being forced through a common one:
-  # wl-copy takes the text as an argument, pbcopy reads stdin.
-  #
-  # Note the newline asymmetry — wl-copy appends a trailing newline when given
-  # an argument (that is its documented default; --trim-newline suppresses it),
-  # whereas `printf '%s'` into pbcopy does not. Left as-is deliberately: this
-  # preserves the exact Linux behaviour that was here before, and no-newline is
-  # the better answer for charwise yanks on the Mac. Copy takes the text as $1.
+  # Use each platform's clipboard tools for ble.sh vi-register integration.
   clipCopy = if isDarwin
     then "printf '%s' \"$1\" | /usr/bin/pbcopy"
     else "${pkgs.wl-clipboard}/bin/wl-copy -- \"$1\"";
@@ -166,7 +107,7 @@ in {
     pinentry-curses     # GPG passphrase entry
     pv
     sox                 # Voice chat for claude-code
-    uv                  # Python tool runner (shared by mcp.nix + telegram-claude.nix)
+    uv                  # Python tool runner (used by mcp.nix)
     ffmpeg
     claude-code
     rustToolchain
@@ -234,18 +175,7 @@ in {
 
         # Vi mode settings
         set -o vi
-        # Ctrl+Space, spelled three ways on purpose.
-        #
-        # Which one the terminal actually sends depends on its keyboard
-        # protocol. A traditional terminal sends NUL (0x00), which arrives as
-        # 'C-@' — that is all Alacritty ever did, so a single binding was enough.
-        # Ghostty negotiates the Kitty keyboard protocol with ble.sh, and under
-        # that protocol Ctrl+Space is reported distinctly as CSI 32;5u, which
-        # ble.sh names 'C-SP'. The 'C-@' binding simply never matched there.
-        #
-        # ble.sh's own safe keymap binds all three names to set-mark for this
-        # exact reason; following the same pattern keeps the completion key
-        # working whichever terminal is in front of it.
+        # Cover the terminal encodings of Ctrl+Space.
         ble-bind -m auto_complete -f 'C-@'  auto_complete/insert
         ble-bind -m auto_complete -f 'C-SP' auto_complete/insert
         ble-bind -m auto_complete -f 'NUL'  auto_complete/insert
@@ -296,14 +226,7 @@ in {
           }
         '
 
-        # Reduce escape key timeout for faster mode switching.
-        #
-        # `stty time 0` sets the non-canonical read timeout (VTIME). On macOS
-        # this resolves to GNU coreutils' stty rather than BSD /bin/stty, and
-        # the underlying tcsetattr refuses the setting — printing "unable to
-        # perform all requested operations" on every shell start. The terminal
-        # is in canonical mode here so the setting is a no-op anyway; keep it
-        # for Linux and let it fail quietly elsewhere.
+        # Keep Escape responsive while allowing terminal key sequences to arrive.
         stty time 0 2>/dev/null || true
         bind 'set keyseq-timeout 1'
 
@@ -368,29 +291,14 @@ in {
     enable = true;
 
     settings = {
-      # macOS terminals conventionally run a *login* shell, and here it is
-      # mandatory: home-manager exports home.sessionVariables from
-      # hm-session-vars.sh, which is sourced by ~/.profile and therefore only
-      # read by login shells. Launching bash without --login skipped the lot —
-      # LANG unset (ble.sh complains), EDITOR falling back to macOS's nano
-      # rather than nvim, and NIX_BUILD_SHELL / PLAYWRIGHT_BROWSERS_PATH /
-      # LC_* all missing.
-      #
-      # Linux does not need this: Sway inherits an already-populated
-      # environment from the session, so leave that side untouched.
+      # A login shell on macOS loads Home Manager session variables from ~/.profile.
       terminal.shell = if isDarwin then {
         program = "${pkgs.bash}/bin/bash";
         args = [ "--login" ];
       } else "${pkgs.bash}/bin/bash";
       font = {
         normal = {
-          # nerd-fonts.dejavu-sans-mono does not register a "DejaVu Sans Mono"
-          # family — it patches the glyphs and renames to "DejaVuSansM Nerd
-          # Font", with a Mono variant that forces every glyph to a single
-          # cell (what a terminal wants) and a Propo variant that does not.
-          # fontconfig fuzzy-matches the old name on Linux, so the original
-          # spelling keeps working there; macOS Core Text requires an exact
-          # match and simply fails to load, so name it precisely.
+          # Core Text requires the patched font's exact family name.
           family = if isDarwin then "DejaVuSansM Nerd Font Mono" else "DejaVu Sans Mono";
           style = "Regular";
         };
@@ -419,43 +327,12 @@ in {
     };
   };
 
-  # ── Ghostty ───────────────────────────────────────────────────────────
-  # The primary terminal. Alacritty above is kept configured as a fallback —
-  # it is still what the Mac's Homebrew cask installs, and keeping its config
-  # costs nothing but leaves a working terminal if a Ghostty release misbehaves.
-  #
-  # Ghostty is here rather than in ./linux.nix because the config genuinely is
-  # cross-platform: home-manager writes it to $XDG_CONFIG_HOME/ghostty/config,
-  # which Ghostty reads on macOS too. Only the package differs — nixpkgs builds
-  # `ghostty` from source for Linux only, and ships the notarised macOS app as
-  # `ghostty-bin`. Both are 1.3.1.
-  #
-  # The module runs `ghostty +validate-config` at build time, so a typo in the
-  # settings below fails the rebuild rather than dropping into a default-looking
-  # terminal at launch.
+  # Primary terminal; Alacritty remains configured as a fallback.
   programs.ghostty = {
     enable = true;
     package = if isDarwin then pkgs.ghostty-bin else pkgs.ghostty;
 
-    # ── Off, and it has to be off in two places ───────────────────────
-    # Ghostty's bash integration sources bash-preexec.sh, wraps PS1 in OSC 133
-    # markers and appends its own hook to PROMPT_COMMAND. ble.sh replaces bash's
-    # line editor wholesale and owns all three of those; upstream ble.sh
-    # documents bash-preexec as incompatible for exactly this reason.
-    #
-    # The collision was not subtle: home-manager puts the integration in
-    # programs.bash.initExtra, which runs *after* bashrcExtra has already called
-    # ble-attach, so it rewrote the prompt out from under a line editor that had
-    # taken ownership of it — which is where the two stray lines at every new
-    # terminal came from.
-    #
-    # enableBashIntegration alone is not enough. Ghostty's own default for
-    # shell-integration is `detect`, so it injects the same script itself
-    # regardless of what home-manager writes into .bashrc. Both have to say no.
-    #
-    # Nothing of value is lost here: ble.sh already draws the prompt, sets the
-    # cursor shape per vi mode (see ble-bind --cursor below), and handles resize
-    # redrawing. What goes away is Ghostty's jump-to-prompt keybinding.
+    # Disable Ghostty shell integration and its features to avoid conflicts with ble.sh.
     enableBashIntegration = false;
 
     settings = {
@@ -472,14 +349,7 @@ in {
       selection-background = accent.dim;
       selection-foreground = colors.bright.white;
 
-      # ── The raster ────────────────────────────────────────────────
-      # fit=none keeps the tile at its native 8x8 instead of scaling it to the
-      # window, and repeat tiles it across the surface — together they are what
-      # turns a one-pixel image into a dot grid. Without fit=none the default
-      # (contain) would stretch that single pixel over the whole terminal.
-      #
-      # The opacity is deliberately low. At full strength an 8px grid of cyan
-      # reads as noise behind text; at 0.18 it sits underneath as texture.
+      # Tile at native size and keep the raster opacity consistent with rasterOnBg.
       background-image = "${dotTile}";
       background-image-repeat = true;
       background-image-fit = "none";
@@ -494,11 +364,7 @@ in {
 
       confirm-close-surface = false;
 
-      # Ghostty's other overlay: it flashes the terminal's dimensions over the
-      # surface whenever a surface is resized. The default (`after-first`)
-      # suppresses that only for a window's own creation, which is the wrong
-      # half under a tiling WM — opening one window resizes every other window
-      # on the workspace, so they all flash a cell count at you. Never.
+      # Hide the resize overlay during tiling.
       resize-overlay = "never";
 
       palette = [
@@ -533,6 +399,10 @@ in {
     settings = {
       "ZeroSync" = {
         HostName = "168.119.139.152";
+        User = "root";
+      };
+      "ideal" = {
+        HostName = "89.167.40.38";
         User = "root";
       };
       "Mac" = {
