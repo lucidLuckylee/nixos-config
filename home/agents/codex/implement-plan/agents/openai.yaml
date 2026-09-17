@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Plan"
+  short_description: "Implement a plan file task by task"
+  default_prompt: "Use $implement-plan to implement the plan at PATH."

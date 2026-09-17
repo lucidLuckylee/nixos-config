@@ -1,5 +1,6 @@
-# Shared MCP server definitions for Claude and Codex. Activation merges managed
-# settings into writable files so application state and trust entries survive.
+# Shared MCP server definitions for Claude and Codex. Activation merges them
+# into writable files so application state and trust entries survive; the
+# agents' own settings live in agents.nix.
 { pkgs, lib, config, ... }:
 let
   npx = "${pkgs.nodejs}/bin/npx";
@@ -29,34 +30,6 @@ let
     };
     cargoHash = "sha256-7t4bjyCcbxFAO/29re7cjoW1ACieeEaM4+QT5QAwc34=";
     doCheck = false;
-  };
-
-  # ── Claude Code global settings (merged into ~/.claude/settings.json) ──
-  claudeSettings = {
-    model = "fable";
-    outputStyle = "Concise";
-
-    permissions = {
-      allow = [
-        "WebFetch(domain:github.com)"
-        "WebFetch(domain:raw.githubusercontent.com)"
-        "WebSearch"
-      ];
-      defaultMode = "auto";
-    };
-
-    sandbox = {
-      filesystem = {
-        allowRead = [ "/nix/store/**" ];
-      };
-    };
-
-    enabledPlugins = {
-      "ralph-loop@claude-plugins-official" = true;
-      "dev-browser@dev-browser-marketplace" = true;
-      "rust-analyzer-lsp@claude-plugins-official" = true;
-      "frontend-design@claude-plugins-official" = true;
-    };
   };
 
   # ── GitHub MCP wrapper (sources PAT from pass) ────────────────────
@@ -136,9 +109,6 @@ let
   mcpConfigFile = pkgs.writeText "claude-mcp-servers.json"
     (builtins.toJSON mcpServers);
 
-  claudeManagedSettings = pkgs.writeText "claude-managed-settings.json"
-    (builtins.toJSON claudeSettings);
-
   # Reuse the server definitions for Codex.
   tomlFormat = pkgs.formats.toml { };
   codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
@@ -180,27 +150,6 @@ in {
     rust-mcp-server
     rust-analyzer-mcp
   ];
-
-  # Merge managed Claude settings recursively, preserving other preferences.
-  home.activation.setupClaudeSettings =
-    lib.hm.dag.entryAfter [ "writeBoundary" "linkGeneration" ] ''
-      CLAUDE_SETTINGS="$HOME/.claude/settings.json"
-      mkdir -p "$HOME/.claude"
-      # An earlier generation left a store symlink here; it would also make the
-      # tmp-file rename below land in the store.
-      [ -L "$CLAUDE_SETTINGS" ] && rm "$CLAUDE_SETTINGS"
-
-      if [ -f "$CLAUDE_SETTINGS" ]; then
-        # Recursive merge with the managed side winning, so a nested key Nix
-        # does not name (an imperatively granted permission, say) survives.
-        ${pkgs.jq}/bin/jq -s '.[0] * .[1]' \
-          "$CLAUDE_SETTINGS" ${claudeManagedSettings} \
-          > "$CLAUDE_SETTINGS.tmp" \
-          && mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
-      else
-        install -m 644 ${claudeManagedSettings} "$CLAUDE_SETTINGS"
-      fi
-    '';
 
   # Keep config.toml writable; Codex stores project trust alongside MCP settings.
   programs.codex.enable = true;

@@ -91,6 +91,7 @@ in {
   imports = [
     ./mcp.nix
     ./pass.nix
+    ./agents.nix
   ];
 
   home.stateVersion = "25.05";
