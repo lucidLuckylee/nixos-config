@@ -7,6 +7,7 @@
     ../../modules/overlays.nix
     ./window-manager.nix
     ./keyboard.nix
+    ./wireguard.nix
   ];
 
   nixpkgs.hostPlatform = "aarch64-darwin";
