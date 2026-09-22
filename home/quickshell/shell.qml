@@ -17,6 +17,8 @@ ShellRoot {
                 pointerPressed: bar.pointerPressed
             }
 
+            EdgeGlow { modelData: shell.modelData }
+
             Bar {
                 id: bar
                 modelData: shell.modelData

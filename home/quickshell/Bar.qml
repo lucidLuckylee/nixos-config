@@ -26,27 +26,6 @@ PanelWindow {
 
     readonly property int barHeight: 28
 
-    // Measure target widths so the menu does not chase animated pill geometry.
-    function menuGap(name) {
-        const pills = cluster.children;
-        let gap = cluster.anchors.rightMargin;
-        let past = false;
-        for (let i = 0; i < pills.length; i++) {
-            const pill = pills[i];
-            if (!pill.visible) continue;
-            if (past) gap += pill.targetWidth + cluster.spacing;
-            if (pill.menu === name) past = true;
-        }
-        return past ? gap : 0;
-    }
-
-    function menuWidth(name) {
-        const pills = cluster.children;
-        for (let i = 0; i < pills.length; i++)
-            if (pills[i].menu === name) return pills[i].targetWidth;
-        return 0;
-    }
-
     anchors.top: true
     anchors.left: true
     anchors.right: true
@@ -142,8 +121,7 @@ PanelWindow {
         open: bar.openMenu !== ""
         current: bar.shown
 
-        pillGap: bar.menuGap(bar.shown)
-        pillWidth: bar.menuWidth(bar.shown)
+        pills: cluster
 
         WifiMenu { window: chrome }
         VolumeMenu { window: chrome }
@@ -192,7 +170,6 @@ PanelWindow {
 
             StatusPill {
                 menu: "wifi"
-                active: bar.openMenu === menu
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 
@@ -215,7 +192,6 @@ PanelWindow {
 
             StatusPill {
                 menu: "volume"
-                active: bar.openMenu === menu
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 
@@ -282,7 +258,6 @@ PanelWindow {
 
             StatusPill {
                 menu: "bluetooth"
-                active: bar.openMenu === menu
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 
@@ -306,7 +281,6 @@ PanelWindow {
 
             StatusPill {
                 menu: "clock"
-                active: bar.openMenu === menu
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 

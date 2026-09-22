@@ -86,14 +86,8 @@ Item {
                     text: chip.modelData.name
                     font.family: Theme.iconFont
                     font.pixelSize: 13
-                    color: {
-                        if (chip.modelData.focused || chip.modelData.urgent)
-                            return Theme.background;
-                        return Theme.hot;
-                    }
+                    color: Theme.hot
                     opacity: chip.modelData.focused || chip.modelData.active ? 1 : 0.75
-
-                    Behavior on color { CAnim { motion: Motion.fastEffect } }
                 }
 
                 TapHandler {

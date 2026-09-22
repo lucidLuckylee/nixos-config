@@ -365,6 +365,10 @@ in {
 
       confirm-close-surface = false;
 
+      # Each launch is its own process, so one wedged instance that opens
+      # windows without spawning a shell cannot block every new terminal.
+      gtk-single-instance = false;
+
       # Hide the resize overlay during tiling.
       resize-overlay = "never";
 

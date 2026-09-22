@@ -1,6 +1,7 @@
-// Draw the bar, menu frame and accent indicator as one continuous shape.
+// Draw the bar highlight, tongue and menu host with bloom around the panel rim.
 
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Shapes
 
 Item {
@@ -11,17 +12,43 @@ Item {
     property bool open: false
     property string current: ""
 
-    property real pillGap: 0
-    property real pillWidth: 0
+    property Item pills
+    property Item tracked
+    readonly property real trackedX: tracked ? pills.x + tracked.x : 0
+    readonly property real trackedWidth: tracked ? tracked.width : 0
+    property real slideX: 0
+    property real slideWidth: 0
+    readonly property real pillX: trackedX + slideX
+    readonly property real pillWidth: trackedWidth + slideWidth
+    readonly property real pillGap: width - pillX - pillWidth
 
-    // Animate target geometry once; snap to the next pill while closed.
-    Behavior on pillGap {
-        enabled: chrome.reveal > 0.01
-        Anim { motion: Motion.spatial }
+    function findPill(name) {
+        if (!pills) return null;
+        for (let i = 0; i < pills.children.length; i++)
+            if (pills.children[i].menu === name) return pills.children[i];
+        return null;
     }
-    Behavior on pillWidth {
-        enabled: chrome.reveal > 0.01
-        Anim { motion: Motion.spatial }
+
+    onCurrentChanged: {
+        const next = findPill(current);
+        if (next === tracked) return;
+        const fromX = pillX, fromWidth = pillWidth;
+        tracked = next;
+        slide.stop();
+        if (reveal > 0.01 && next && fromWidth > 0) {
+            slideX = fromX - trackedX;
+            slideWidth = fromWidth - trackedWidth;
+            slide.start();
+        } else {
+            slideX = 0;
+            slideWidth = 0;
+        }
+    }
+
+    ParallelAnimation {
+        id: slide
+        Anim { target: chrome; property: "slideX"; to: 0; motion: Motion.spatial }
+        Anim { target: chrome; property: "slideWidth"; to: 0; motion: Motion.spatial }
     }
 
     // MenuPage children live inside the clipped content host.
@@ -113,17 +140,27 @@ Item {
     // The right edge stays steady when a status label changes width.
     readonly property real pillRight: hostWidth - liveInset - pad
 
+    // The panel's bloom, drawn under the panel itself.
+    MultiEffect {
+        source: panel
+        anchors.fill: panel
+        shadowEnabled: true
+        shadowColor: Theme.primary
+        blurMax: 48
+        shadowBlur: 1.0
+        shadowOpacity: 0.15
+        shadowVerticalOffset: 0
+        shadowHorizontalOffset: 0
+    }
+
     Shape {
+        id: panel
         anchors.fill: parent
         preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
             // The panel outline continues the bar's bottom edge around the menu.
-            id: panel
-
-            fillColor: Theme.panel
-            strokeColor: Theme.primary
-            strokeWidth: 1
+            id: outline
 
             readonly property real edge: chrome.barHeight - 0.5
             readonly property real left: chrome.boxX + 0.5
@@ -131,77 +168,179 @@ Item {
             readonly property real bottom: edge + chrome.boxHeight
             readonly property real radius: Math.max(0, chrome.boxRadius - 0.5)
 
+            // A lit turquoise pane with a whiter core inside the primary bloom.
+            fillColor: Qt.tint(Theme.panel, Qt.alpha(Theme.primary, 0.2))
+            strokeColor: Qt.lighter(Theme.primary, 1.35)
+            strokeWidth: 1
+
             startX: -2
-            startY: panel.edge
-            PathLine { x: panel.left; y: panel.edge }
-            PathLine { x: panel.left; y: panel.bottom - panel.radius }
+            startY: outline.edge
+            PathLine { x: outline.left; y: outline.edge }
+            PathLine { x: outline.left; y: outline.bottom - outline.radius }
             PathArc {
-                x: panel.left + panel.radius; y: panel.bottom
-                radiusX: panel.radius; radiusY: panel.radius
+                x: outline.left + outline.radius; y: outline.bottom
+                radiusX: outline.radius; radiusY: outline.radius
                 direction: PathArc.Counterclockwise
             }
-            PathLine { x: panel.right - panel.radius; y: panel.bottom }
+            PathLine { x: outline.right - outline.radius; y: outline.bottom }
             PathArc {
-                x: panel.right; y: panel.bottom - panel.radius
-                radiusX: panel.radius; radiusY: panel.radius
+                x: outline.right; y: outline.bottom - outline.radius
+                radiusX: outline.radius; radiusY: outline.radius
                 direction: PathArc.Counterclockwise
             }
-            PathLine { x: panel.right; y: panel.edge }
-            PathLine { x: chrome.width + 2; y: panel.edge }
+            PathLine { x: outline.right; y: outline.edge }
+            PathLine { x: chrome.width + 2; y: outline.edge }
             PathLine { x: chrome.width + 2; y: -2 }
             PathLine { x: -2; y: -2 }
         }
+    }
+
+    // Scanlines and an inner rim light along the bar edge and the menu frame.
+    Item {
+        id: lighting
+        visible: false
+        anchors.fill: parent
+
+        readonly property int rim: chrome.frame
+        readonly property color lit: Qt.alpha(Theme.primary, 0.35)
+        readonly property bool boxOpen: chrome.boxHeight > 0
+
+        Repeater {
+            model: Math.floor(lighting.height / 3)
+            Rectangle {
+                y: index * 3
+                width: lighting.width
+                height: 1
+                color: Qt.alpha(Theme.primary, 0.10)
+            }
+        }
+
+        Rectangle {
+            y: chrome.barHeight - lighting.rim
+            width: lighting.boxOpen ? chrome.boxX : lighting.width
+            height: lighting.rim
+            gradient: Gradient {
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 1; color: lighting.lit }
+            }
+        }
+
+        Rectangle {
+            x: chrome.boxX + chrome.boxWidth
+            y: chrome.barHeight - lighting.rim
+            width: lighting.width - x
+            height: lighting.rim
+            visible: lighting.boxOpen
+            gradient: Gradient {
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 1; color: lighting.lit }
+            }
+        }
+
+        Rectangle {
+            x: chrome.boxX
+            y: chrome.barHeight
+            width: lighting.rim
+            height: chrome.boxHeight
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: lighting.lit }
+                GradientStop { position: 1; color: "transparent" }
+            }
+        }
+
+        Rectangle {
+            x: chrome.boxX + chrome.boxWidth - lighting.rim
+            y: chrome.barHeight
+            width: lighting.rim
+            height: chrome.boxHeight
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 1; color: lighting.lit }
+            }
+        }
+
+        Rectangle {
+            x: chrome.boxX
+            y: chrome.barHeight + chrome.boxHeight - lighting.rim
+            width: chrome.boxWidth
+            height: Math.min(lighting.rim, chrome.boxHeight)
+            gradient: Gradient {
+                GradientStop { position: 0; color: "transparent" }
+                GradientStop { position: 1; color: lighting.lit }
+            }
+        }
+    }
+
+    ShaderEffectSource {
+        id: panelMask
+        sourceItem: panel
+        visible: false
+    }
+
+    MultiEffect {
+        source: lighting
+        anchors.fill: lighting
+        maskEnabled: true
+        maskSource: panelMask
+    }
+
+    Shape {
+        id: indicator
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
             // The accent tab and menu host share one filled outline.
-            id: indicator
-
-            fillColor: Theme.primary
-            strokeWidth: -1
+            id: accent
 
             readonly property real top: chrome.hostTop
             readonly property real bottom: chrome.hostTop + chrome.hostVisibleHeight
             readonly property real left: chrome.hostLeft
             readonly property real right: chrome.hostRight
             readonly property real tabLeft: chrome.hostLeft + chrome.tongueX
-            readonly property real tabRight: indicator.tabLeft + chrome.pillWidth
+            readonly property real tabRight: accent.tabLeft + chrome.pillWidth
 
             readonly property real radius:
                 Math.min(chrome.corner, chrome.hostVisibleHeight / 2)
             readonly property real topLeftRadius:
-                Math.min(indicator.radius, chrome.tongueX)
+                Math.min(accent.radius, chrome.tongueX)
             readonly property real topRightRadius:
-                Math.min(indicator.radius, chrome.liveInset)
+                Math.min(accent.radius, chrome.liveInset)
 
-            startX: indicator.tabLeft
-            startY: chrome.barHeight
-            PathLine { x: indicator.tabRight; y: chrome.barHeight }
-            PathLine { x: indicator.tabRight; y: indicator.top }
+            fillColor: Qt.alpha(Theme.primary, Math.min(1, chrome.grow))
+            strokeWidth: -1
+
+            startX: accent.tabLeft
+            startY: 0
+            PathLine { x: accent.tabRight; y: 0 }
+            PathLine { x: accent.tabRight; y: accent.top }
             PathLine {
-                x: indicator.right - indicator.topRightRadius; y: indicator.top
+                x: accent.right - accent.topRightRadius; y: accent.top
             }
             PathArc {
-                x: indicator.right; y: indicator.top + indicator.topRightRadius
-                radiusX: indicator.topRightRadius
-                radiusY: indicator.topRightRadius
+                x: accent.right; y: accent.top + accent.topRightRadius
+                radiusX: accent.topRightRadius
+                radiusY: accent.topRightRadius
             }
-            PathLine { x: indicator.right; y: indicator.bottom - indicator.radius }
+            PathLine { x: accent.right; y: accent.bottom - accent.radius }
             PathArc {
-                x: indicator.right - indicator.radius; y: indicator.bottom
-                radiusX: indicator.radius; radiusY: indicator.radius
+                x: accent.right - accent.radius; y: accent.bottom
+                radiusX: accent.radius; radiusY: accent.radius
             }
-            PathLine { x: indicator.left + indicator.radius; y: indicator.bottom }
+            PathLine { x: accent.left + accent.radius; y: accent.bottom }
             PathArc {
-                x: indicator.left; y: indicator.bottom - indicator.radius
-                radiusX: indicator.radius; radiusY: indicator.radius
+                x: accent.left; y: accent.bottom - accent.radius
+                radiusX: accent.radius; radiusY: accent.radius
             }
-            PathLine { x: indicator.left; y: indicator.top + indicator.topLeftRadius }
+            PathLine { x: accent.left; y: accent.top + accent.topLeftRadius }
             PathArc {
-                x: indicator.left + indicator.topLeftRadius; y: indicator.top
-                radiusX: indicator.topLeftRadius
-                radiusY: indicator.topLeftRadius
+                x: accent.left + accent.topLeftRadius; y: accent.top
+                radiusX: accent.topLeftRadius
+                radiusY: accent.topLeftRadius
             }
-            PathLine { x: indicator.tabLeft; y: indicator.top }
+            PathLine { x: accent.tabLeft; y: accent.top }
         }
     }
 

@@ -18,6 +18,7 @@ Item {
 
     property string glyph
     property string label
+    // Own on-state for clickable pills; menu pills leave this false.
     property bool active: false
     property color tint: Theme.primary
 
@@ -26,10 +27,7 @@ Item {
     signal hoverChanged(bool hovered)
     signal activated()
 
-    // Expose the target size so the menu and pill can animate together.
-    readonly property real targetWidth: row.implicitWidth + Tokens.padding.medium * 2
-
-    implicitWidth: targetWidth
+    implicitWidth: row.implicitWidth + Tokens.padding.medium * 2
     implicitHeight: 22
     clip: true
 
@@ -45,9 +43,11 @@ Item {
         bottomLeftRadius: pill.opens ? 0 : radius
         bottomRightRadius: pill.opens ? 0 : radius
 
+        // Menu pills are highlighted by the chrome's indicator instead.
+        visible: pill.interactive
         color: pill.active
             ? Theme.primary
-            : (hover.hovered && pill.interactive ? Qt.alpha(Theme.primary, 0.10) : "transparent")
+            : (hover.hovered ? Qt.alpha(Theme.primary, 0.10) : "transparent")
 
         Behavior on color { CAnim { motion: Motion.fastEffect } }
     }
@@ -60,7 +60,7 @@ Item {
         Text {
             text: pill.glyph
             visible: text !== ""
-            color: pill.active ? Theme.background : (pill.alert ? pill.tint : Theme.hot)
+            color: pill.alert ? pill.tint : Theme.hot
             font.family: Theme.iconFont
             font.pixelSize: Tokens.fontSize.normal
 
@@ -70,10 +70,9 @@ Item {
         Text {
             text: pill.label
             visible: text !== ""
-            color: pill.active ? Theme.background : Theme.hot
+            color: Theme.hot
             font.family: Theme.fontFamily
             font.pixelSize: Tokens.fontSize.small
-            Behavior on color { CAnim { motion: Motion.fastEffect } }
         }
     }
 
