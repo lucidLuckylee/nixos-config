@@ -90,6 +90,7 @@ let
 in {
   imports = [
     ./mcp.nix
+    ./pass.nix
   ];
 
   home.stateVersion = "25.05";
@@ -103,7 +104,6 @@ in {
     blesh
     unzip
     wakeonlan
-    pass                # password-store
     pinentry-curses     # GPG passphrase entry
     pv
     sox                 # Voice chat for claude-code

@@ -7,6 +7,8 @@ let
   theme = import ./colors.nix;
   inherit (theme) colors accent;
   workspaces = import ./workspaces.nix;
+  alwaysOn = import ./always-on.nix { inherit pkgs; };
+  agenda = import ./agenda.nix { inherit pkgs; };
 
   # df is the only polled readout; expose a store-backed helper to the service.
   diskFree = pkgs.writeShellScript "disk-free" ''
@@ -57,6 +59,8 @@ let
 
     Singleton {
         readonly property string diskFree: "${diskFree}"
+        readonly property string alwaysOn: "${alwaysOn}"
+        readonly property string agenda: "${agenda}"
     }
   '';
 

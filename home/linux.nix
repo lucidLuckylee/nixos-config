@@ -6,6 +6,7 @@ let
   theme = import ./colors.nix;
   inherit (theme) colors accent opacity opacity_alpha_hex;
   workspaces = import ./workspaces.nix;
+  alwaysOn = import ./always-on.nix { inherit pkgs; };
   mod = "Mod4";
 
   # wmenu takes colours as bare RRGGBB[AA], with no leading '#'.
@@ -15,7 +16,7 @@ let
   animatedWallpaper = "${config.xdg.dataHome}/wallpaper/animated.mp4";
 
   # Pause swayidle while manually blanked, then restore its previous state.
-  # This prevents mouse motion from undoing blanking or cancelling always-on mode.
+  # This prevents mouse motion from undoing blanking or cancelling always-on.
   # The .dpms fallback supports older Sway versions.
   blankToggle = pkgs.writeShellScript "sway-blank-toggle" ''
     set -eu
@@ -79,11 +80,31 @@ in {
     clone = "( { output=$(ghostty 2>&1) || echo '$output'; } & disown)";
   };
 
+  # pam_gnupg presets the login password (see modules/common.nix), so the
+  # cache has to outlive a working day or pass locks again mid-session.
   services.gpg-agent = {
     enable = true;
     defaultCacheTtl = 3600;      # Cache passphrase for 1 hour
-    maxCacheTtl = 86400;         # Max 24 hours
+    maxCacheTtl = 604800;        # Presets survive a week
     pinentry.package = pkgs.pinentry-curses;
+    extraConfig = "allow-preset-passphrase";
+  };
+
+  # Keep the pass store current; the activation hook in pass.nix clones it.
+  systemd.user.services.pass-store-sync = {
+    Unit.Description = "Pull the pass store";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "%h/.local/bin/pass-store-sync";
+    };
+  };
+  systemd.user.timers.pass-store-sync = {
+    Unit.Description = "Pull the pass store hourly";
+    Timer = {
+      OnStartupSec = "2min";
+      OnUnitActiveSec = "1h";
+    };
+    Install.WantedBy = [ "timers.target" ];
   };
 
 
@@ -200,8 +221,8 @@ in {
           # --no-repeat so holding the key does not blank-unblank in a loop.
           "--locked --no-repeat ${mod}+XF86MonBrightnessDown" = "exec ${blankToggle}";
 
-          # Toggle always-on mode
-          "${mod}+Shift+m" = ''exec systemctl --user stop swayidle.service; mode "always-on"'';
+          # Toggle always-on; the bar's coffee pill runs the same script.
+          "${mod}+Shift+m" = "exec ${alwaysOn} toggle";
         }
       );
       # Only the focused window gets the neon; everything else recedes into the
@@ -257,13 +278,6 @@ in {
           };
         }
       ];
-
-      # Merge with the default modes to retain resize mode and its exit bindings.
-      modes = pkgs.lib.mkOptionDefault {
-        "always-on" = {
-          "${mod}+Shift+m" = ''exec systemctl --user start swayidle.service; mode "default"'';
-        };
-      };
     };
   };
 }

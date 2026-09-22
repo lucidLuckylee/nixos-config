@@ -24,6 +24,17 @@
     !include /etc/nix/access-tokens.conf
   '';
 
+  # Unlock the pass GPG key with the login password (pam_gnupg; the key's
+  # passphrase must equal it). tty1 autologins without a password, so the
+  # first sudo of a session does the unlocking there. sudo presets during
+  # auth, while PAM_USER is still the caller; no-autostart keeps the session
+  # phase from spawning an agent for root.
+  security.pam.services.login.gnupg.enable = true;
+  security.pam.services.sudo.gnupg = {
+    enable = true;
+    noAutostart = true;
+  };
+
   # Bootloader (UEFI)
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;

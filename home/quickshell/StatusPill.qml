@@ -1,4 +1,4 @@
-// Status readout; a menu name enables hover and click interaction.
+// Status readout; a menu name or `clickable` enables hover and click interaction.
 
 import QtQuick
 import QtQuick.Layouts
@@ -8,6 +8,10 @@ Item {
 
     property string menu: ""
     readonly property bool opens: menu !== ""
+
+    // A pill can act on its own without opening a menu.
+    property bool clickable: false
+    readonly property bool interactive: opens || clickable
 
     Layout.fillHeight: opens
     Layout.alignment: Qt.AlignVCenter
@@ -43,7 +47,7 @@ Item {
 
         color: pill.active
             ? Theme.primary
-            : (hover.hovered && pill.opens ? Qt.alpha(Theme.primary, 0.10) : "transparent")
+            : (hover.hovered && pill.interactive ? Qt.alpha(Theme.primary, 0.10) : "transparent")
 
         Behavior on color { CAnim { motion: Motion.fastEffect } }
     }
@@ -75,13 +79,13 @@ Item {
 
     HoverHandler {
         id: hover
-        enabled: pill.opens
+        enabled: pill.interactive
         cursorShape: Qt.PointingHandCursor
         onHoveredChanged: pill.hoverChanged(hovered)
     }
 
     TapHandler {
-        enabled: pill.opens
+        enabled: pill.interactive
         onTapped: pill.activated()
     }
 }

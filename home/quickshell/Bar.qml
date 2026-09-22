@@ -179,6 +179,17 @@ PanelWindow {
             anchors.bottom: parent.bottom
             spacing: Tokens.spacing.extraSmall
 
+            // Always-on keeps the screens awake; click toggles it like Mod+Shift+m.
+            StatusPill {
+                clickable: true
+                active: AlwaysOn.active
+                onActivated: AlwaysOn.toggle()
+
+                glyph: String.fromCodePoint(
+                    AlwaysOn.active ? 0xf0176 : 0xf0faa)  // md-coffee / md-coffee-off
+                label: AlwaysOn.active ? "always-on" : ""
+            }
+
             StatusPill {
                 menu: "wifi"
                 active: bar.openMenu === menu
