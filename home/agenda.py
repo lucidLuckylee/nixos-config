@@ -1,9 +1,10 @@
 """Fetch upcoming CalDAV events and write them as JSON for the Quickshell bar.
 
 Usage: agenda.py OUTPUT_JSON
-Reads CALDAV_URL, CALDAV_USERNAME and CALDAV_PASSWORD from the environment.
-The output file is only replaced on success, so the bar keeps the last agenda
-while the server is unreachable.
+CALDAV_ACCOUNTS names the accounts; each NAME has CALDAV_NAME_URL,
+CALDAV_NAME_USERNAME and CALDAV_NAME_PASSWORD in the environment. An account
+that fails keeps its rows from the previous output, and the exit status
+reports the failure so the bar can flag it.
 """
 
 import json
@@ -93,7 +94,7 @@ def span(component):
     return as_datetime(start).isoformat(), as_datetime(end).isoformat(), False
 
 
-def describe(component, calendar):
+def describe(component, account, calendar):
     start, end, all_day = span(component)
     description = text(component, "DESCRIPTION")
     if len(description) > DESCRIPTION_LIMIT:
@@ -101,6 +102,7 @@ def describe(component, calendar):
 
     return {
         "uid": text(component, "UID"),
+        "account": account,
         "calendar": calendar,
         "summary": text(component, "SUMMARY") or "(untitled)",
         "start": start,
@@ -113,7 +115,7 @@ def describe(component, calendar):
     }
 
 
-def collect(components, calendar):
+def collect(components, account, calendar):
     """Turn VEVENT components into agenda rows, dropping cancellations and duplicates."""
     rows = {}
     for component in components:
@@ -121,15 +123,16 @@ def collect(components, calendar):
             continue
         if text(component, "STATUS").upper() == "CANCELLED":
             continue
-        row = describe(component, calendar)
+        row = describe(component, account, calendar)
         rows[(row["uid"], row["start"])] = row
     return list(rows.values())
 
 
-def fetch():
-    url = os.environ["CALDAV_URL"]
-    username = os.environ["CALDAV_USERNAME"]
-    password = os.environ["CALDAV_PASSWORD"]
+def fetch(account):
+    prefix = "CALDAV_%s_" % account.upper()
+    url = os.environ[prefix + "URL"]
+    username = os.environ[prefix + "USERNAME"]
+    password = os.environ[prefix + "PASSWORD"]
 
     today = date.today()
     start = datetime.combine(today - timedelta(days=PAST_DAYS), datetime.min.time())
@@ -138,17 +141,41 @@ def fetch():
     events = []
     with caldav.DAVClient(url=url, username=username, password=password) as client:
         for calendar in client.principal().calendars():
-            name = str(calendar.name or "")
+            name = str(calendar.get_display_name() or "")
             found = calendar.search(start=start, end=end, event=True, expand=True)
             components = (
                 component
                 for resource in found
                 for component in resource.icalendar_instance.walk("VEVENT")
             )
-            events.extend(collect(components, name))
+            events.extend(collect(components, account, name))
+    return events
+
+
+def previous(path):
+    try:
+        with open(path) as handle:
+            return json.load(handle).get("events", [])
+    except (OSError, ValueError):
+        return []
+
+
+def fetch_all(accounts, path):
+    """Fetch every account, falling back to the last output for any that fails."""
+    events = []
+    failed = []
+    for account in accounts:
+        try:
+            events.extend(fetch(account))
+        except Exception as error:  # noqa: BLE001 - any failure keeps the old rows
+            print("%s: %s" % (account, error), file=sys.stderr)
+            failed.append(account)
+
+    if failed:
+        events.extend(row for row in previous(path) if row.get("account") in failed)
 
     events.sort(key=lambda row: (row["start"], row["summary"]))
-    return events
+    return events, failed
 
 
 def write(path, payload):
@@ -163,8 +190,16 @@ def write(path, payload):
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    events = fetch()
-    write(sys.argv[1], {"synced": datetime.now(LOCAL_TZ).isoformat(), "events": events})
+    accounts = os.environ["CALDAV_ACCOUNTS"].split()
+    path = sys.argv[1]
+
+    events, failed = fetch_all(accounts, path)
+    if len(failed) == len(accounts):
+        sys.exit(1)
+
+    write(path, {"synced": datetime.now(LOCAL_TZ).isoformat(), "events": events})
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
