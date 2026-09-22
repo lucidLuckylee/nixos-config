@@ -183,10 +183,11 @@ MenuPage {
                         width: menu.cellWidth
                         height: menu.cellHeight
 
+                        // Square marks: the grid reads as a table, not a row of pills.
                         Rectangle {
                             anchors.fill: parent
                             anchors.margins: Tokens.spacing.extraSmall
-                            radius: Tokens.rounding.full
+                            radius: 0
                             color: cell.isToday ? Theme.background
                                  : cell.isSelected ? Qt.alpha(Theme.background, 0.24)
                                  : cellHover.hovered ? Qt.alpha(Theme.background, 0.12)
@@ -209,17 +210,16 @@ MenuPage {
                             Behavior on color { CAnim { motion: Motion.fastEffect } }
                         }
 
-                        // A dot marks days that have events.
+                        // A dot marks days that have events. Today is filled and its
+                        // agenda opens by default, so it needs none.
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: 2
                             width: 3
                             height: 3
-                            radius: Tokens.rounding.full
-                            visible: cell.busy
-                            color: cell.isToday ? Theme.primary
-                                 : Qt.alpha(Theme.background, cell.inMonth ? 1 : 0.35)
+                            visible: cell.busy && !cell.isToday
+                            color: Qt.alpha(Theme.background, cell.inMonth ? 1 : 0.35)
                         }
 
                         HoverHandler {
@@ -295,7 +295,7 @@ MenuPage {
 
                         Rectangle {
                             anchors.fill: parent
-                            radius: Tokens.rounding.small
+                            radius: 0
                             color: rowHover.hovered && row.link !== ""
                                 ? Qt.alpha(Theme.background, 0.10) : "transparent"
 
