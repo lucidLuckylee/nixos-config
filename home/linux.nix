@@ -80,14 +80,14 @@ in {
     clone = "( { output=$(ghostty 2>&1) || echo '$output'; } & disown)";
   };
 
-  # pam_gnupg presets the login password (see modules/common.nix), so the
-  # cache has to outlive a working day or pass locks again mid-session.
+  # The GPG key keeps its own passphrase. A graphical pinentry lets the bar's
+  # agenda sync ask for it, and every use restarts the hour, so the key stays
+  # unlocked while the bar polls; a week bounds it.
   services.gpg-agent = {
     enable = true;
-    defaultCacheTtl = 3600;      # Cache passphrase for 1 hour
-    maxCacheTtl = 604800;        # Presets survive a week
-    pinentry.package = pkgs.pinentry-curses;
-    extraConfig = "allow-preset-passphrase";
+    defaultCacheTtl = 3600;
+    maxCacheTtl = 604800;
+    pinentry.package = pkgs.pinentry-qt;
   };
 
   # Keep the pass store current; the activation hook in pass.nix clones it.

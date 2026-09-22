@@ -36,19 +36,4 @@ in {
         || echo "pass-store: sync failed; rerun ~/.local/bin/pass-store-sync when GitHub is reachable" >&2
     fi
   '';
-
-  # pam_gnupg presets the login password for the keygrips listed in
-  # ~/.pam-gnupg. The key is imported by hand, so derive the grips from
-  # whatever encryption keys the keyring holds at activation.
-  home.activation.pamGnupgKeygrips = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    if [ -z "''${DRY_RUN:-}" ]; then
-      grips=$(${pkgs.gnupg}/bin/gpg --batch --with-colons --with-keygrip --list-secret-keys 2>/dev/null \
-        | ${pkgs.gawk}/bin/gawk -F: '/^(sec|ssb):/ { want = index($12, "e") > 0 } /^grp:/ && want { print $10 }')
-      if [ -n "$grips" ]; then
-        printf '%s\n' "$grips" > "$HOME/.pam-gnupg"
-      else
-        echo "pass-store: no GPG secret key yet; import it and switch again to enable login unlock" >&2
-      fi
-    fi
-  '';
 }
