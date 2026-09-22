@@ -195,7 +195,7 @@ Item {
         }
     }
 
-    // Scanlines and an inner rim light along the bar edge and the menu frame.
+    // Scanlines, a light along the bar's top edge and a rim light in the menu frame.
     Item {
         id: lighting
         visible: false
@@ -203,7 +203,6 @@ Item {
 
         readonly property int rim: chrome.frame
         readonly property color lit: Qt.alpha(Theme.primary, 0.35)
-        readonly property bool boxOpen: chrome.boxHeight > 0
 
         Repeater {
             model: Math.floor(lighting.height / 3)
@@ -216,24 +215,11 @@ Item {
         }
 
         Rectangle {
-            y: chrome.barHeight - lighting.rim
-            width: lighting.boxOpen ? chrome.boxX : lighting.width
+            width: lighting.width
             height: lighting.rim
             gradient: Gradient {
-                GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: lighting.lit }
-            }
-        }
-
-        Rectangle {
-            x: chrome.boxX + chrome.boxWidth
-            y: chrome.barHeight - lighting.rim
-            width: lighting.width - x
-            height: lighting.rim
-            visible: lighting.boxOpen
-            gradient: Gradient {
-                GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: lighting.lit }
+                GradientStop { position: 0; color: lighting.lit }
+                GradientStop { position: 1; color: "transparent" }
             }
         }
 

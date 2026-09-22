@@ -201,6 +201,13 @@ in {
 
           # Toggle always-on; the bar's coffee pill runs the same script.
           "${mod}+Shift+m" = "exec ${alwaysOn} toggle";
+
+          # Sway names an output's first workspace after the earliest
+          # `workspace` binding in the config whenever no output assignment
+          # applies. Home Manager sorts bindings, so mod+0 (workspace 10) came
+          # first and a fresh screen opened on 10. Rebound in extraConfig, below
+          # mod+1..9.
+          "${mod}+0" = null;
         }
       );
       # Only the focused window gets the neon; everything else recedes into the
@@ -257,5 +264,8 @@ in {
         }
       ];
     };
+    extraConfig = ''
+      bindsym ${mod}+0 workspace number 10
+    '';
   };
 }
