@@ -2,9 +2,10 @@
 
 Usage: agenda.py OUTPUT_JSON
 CALDAV_ACCOUNTS names the accounts; each NAME has CALDAV_NAME_URL,
-CALDAV_NAME_USERNAME and CALDAV_NAME_PASSWORD in the environment. An account
-that fails keeps its rows from the previous output, and the exit status
-reports the failure so the bar can flag it.
+CALDAV_NAME_USERNAME and CALDAV_NAME_PASSWORD in the environment, and an
+optional CALDAV_NAME_CALENDARS JSON list restricting it to those calendar
+names. An account that fails keeps its rows from the previous output, and
+the exit status reports the failure so the bar can flag it.
 """
 
 import json
@@ -133,6 +134,7 @@ def fetch(account):
     url = os.environ[prefix + "URL"]
     username = os.environ[prefix + "USERNAME"]
     password = os.environ[prefix + "PASSWORD"]
+    wanted = json.loads(os.environ.get(prefix + "CALENDARS") or "null")
 
     today = date.today()
     start = datetime.combine(today - timedelta(days=PAST_DAYS), datetime.min.time())
@@ -142,6 +144,8 @@ def fetch(account):
     with caldav.DAVClient(url=url, username=username, password=password) as client:
         for calendar in client.principal().calendars():
             name = str(calendar.get_display_name() or "")
+            if wanted is not None and name not in wanted:
+                continue
             found = calendar.search(start=start, end=end, event=True, expand=True)
             components = (
                 component
