@@ -188,7 +188,7 @@ MenuPage {
                             anchors.fill: parent
                             anchors.margins: Tokens.spacing.extraSmall
                             radius: 0
-                            color: cell.isToday ? Theme.background
+                            color: cell.isToday ? "transparent"
                                  : cell.isSelected ? Qt.alpha(Theme.background, 0.24)
                                  : cellHover.hovered ? Qt.alpha(Theme.background, 0.12)
                                  : "transparent"
@@ -196,6 +196,12 @@ MenuPage {
                             border.color: Qt.alpha(Theme.background, 0.6)
 
                             Behavior on color { CAnim { motion: Motion.fastEffect } }
+                        }
+
+                        Frame {
+                            anchors.fill: parent
+                            anchors.margins: Tokens.spacing.extraSmall
+                            shown: cell.isToday
                         }
 
                         Text {

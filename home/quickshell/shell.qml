@@ -15,9 +15,16 @@ ShellRoot {
                 id: menus
                 shapeHovered: bar.shapeHovered
                 pointerPressed: bar.pointerPressed
+                plainPillHovered: bar.plainPillHovered
+                pinned: Pinentry.pending && Pinentry.screen === shell.modelData.name
+                    ? "pinentry" : ""
             }
 
             EdgeGlow { modelData: shell.modelData }
+            LauncherDismiss {
+                modelData: shell.modelData
+                hole: bar.launcherRect
+            }
 
             Bar {
                 id: bar

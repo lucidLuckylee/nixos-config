@@ -20,8 +20,21 @@ QtObject {
     readonly property int openDelay: 160
     readonly property int switchDelay: 110
     readonly property int closeDelay: 350
+    // A menu that must stay up, like a passphrase prompt, overrides hover and clicks.
+    property string pinned: ""
+    onPinnedChanged: openMenu = pinned
+
+    // Hovering a pill without a menu closes the open one so the tab can move there.
+    property bool plainPillHovered: false
+    onPlainPillHoveredChanged: {
+        if (plainPillHovered && pinned === "") {
+            opener.stop();
+            openMenu = "";
+        }
+    }
+
     readonly property bool keepOpen:
-        shapeHovered || hoveredPill !== "" || pointerPressed
+        shapeHovered || hoveredPill !== "" || pointerPressed || pinned !== ""
 
     function hover(name, hovered) {
         if (hovered) {
@@ -35,7 +48,7 @@ QtObject {
     }
 
     function toggle(name) {
-        if (name === "") return;
+        if (name === "" || pinned !== "") return;
         opener.stop();
         dismissedPill = openMenu === name ? name : "";
         openMenu = openMenu === name ? "" : name;
@@ -51,7 +64,7 @@ QtObject {
 
     function scheduleOpen() {
         opener.stop();
-        if (!pointerPressed && hoveredPill !== ""
+        if (pinned === "" && !pointerPressed && hoveredPill !== ""
                 && hoveredPill !== openMenu && hoveredPill !== dismissedPill)
             opener.start();
     }

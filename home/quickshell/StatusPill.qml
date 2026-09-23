@@ -24,6 +24,9 @@ Item {
 
     property bool alert: false
 
+    // Every pill reports hover so the chrome's tab can mark it, menu or not.
+    readonly property alias hovered: hover.hovered
+
     signal hoverChanged(bool hovered)
     signal activated()
 
@@ -37,11 +40,8 @@ Item {
     Rectangle {
         anchors.fill: parent
 
-        radius: pill.opens ? 0 : Tokens.rounding.full
-        topLeftRadius: pill.opens ? 2 : radius
-        topRightRadius: pill.opens ? 2 : radius
-        bottomLeftRadius: pill.opens ? 0 : radius
-        bottomRightRadius: pill.opens ? 0 : radius
+        topLeftRadius: pill.opens ? 2 : 0
+        topRightRadius: pill.opens ? 2 : 0
 
         // Menu pills are highlighted by the chrome's indicator instead.
         visible: pill.interactive
@@ -78,8 +78,7 @@ Item {
 
     HoverHandler {
         id: hover
-        enabled: pill.interactive
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: pill.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
         onHoveredChanged: pill.hoverChanged(hovered)
     }
 

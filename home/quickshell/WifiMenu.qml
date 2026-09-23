@@ -142,12 +142,15 @@ MenuPage {
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: Tokens.rounding.small
-                        color: row.modelData.connected
-                            ? Theme.background
-                            : (rowHover.hovered ? Qt.alpha(Theme.background, 0.10) : "transparent")
+                        color: !row.modelData.connected && rowHover.hovered
+                            ? Qt.alpha(Theme.background, 0.10) : "transparent"
 
                         Behavior on color { CAnim { motion: Motion.fastEffect } }
+                    }
+
+                    Frame {
+                        anchors.fill: parent
+                        shown: row.modelData.connected
                     }
 
                     HoverHandler { id: rowHover }

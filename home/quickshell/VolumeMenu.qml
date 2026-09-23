@@ -126,7 +126,6 @@ MenuPage {
 
             Rectangle {
                 anchors.fill: parent
-                radius: Tokens.rounding.extraSmall
                 color: "transparent"
                 border.width: 1
 
@@ -140,11 +139,6 @@ MenuPage {
                     y: 1
                     height: parent.height - 2
                     width: Math.round((parent.width - 2) * level.fraction)
-
-                    topLeftRadius: Tokens.rounding.extraSmall - 1
-                    bottomLeftRadius: Tokens.rounding.extraSmall - 1
-                    topRightRadius: 0
-                    bottomRightRadius: 0
 
                     color: Qt.alpha(Theme.background, menu.muted ? 0.3 : 1)
 
@@ -193,12 +187,15 @@ MenuPage {
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: Tokens.rounding.small
-                        color: row.current
-                            ? Theme.background
-                            : (hover.hovered ? Qt.alpha(Theme.background, 0.10) : "transparent")
+                        color: !row.current && hover.hovered
+                            ? Qt.alpha(Theme.background, 0.10) : "transparent"
 
                         Behavior on color { CAnim { motion: Motion.fastEffect } }
+                    }
+
+                    Frame {
+                        anchors.fill: parent
+                        shown: row.current
                     }
 
                     HoverHandler { id: hover }

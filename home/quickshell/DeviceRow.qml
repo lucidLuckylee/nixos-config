@@ -57,12 +57,15 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Tokens.rounding.small
-        color: row.device.connected
-            ? Theme.background
-            : (rowHover.hovered ? Qt.alpha(Theme.background, 0.10) : "transparent")
+        color: !row.device.connected && rowHover.hovered
+            ? Qt.alpha(Theme.background, 0.10) : "transparent"
 
         Behavior on color { CAnim { motion: Motion.fastEffect } }
+    }
+
+    Frame {
+        anchors.fill: parent
+        shown: row.device.connected
     }
 
     HoverHandler { id: rowHover }

@@ -4,13 +4,10 @@
 
 let
   theme = import ./colors.nix;
-  inherit (theme) colors accent opacity opacity_alpha_hex;
+  inherit (theme) colors accent opacity;
   workspaces = import ./workspaces.nix;
   alwaysOn = import ./always-on.nix { inherit pkgs; };
   mod = "Mod4";
-
-  # wmenu takes colours as bare RRGGBB[AA], with no leading '#'.
-  hex = pkgs.lib.removePrefix "#";
 
   # Pause swayidle while manually blanked, then restore its previous state.
   # This prevents mouse motion from undoing blanking or cancelling always-on.
@@ -78,14 +75,14 @@ in {
     clone = "( { output=$(ghostty 2>&1) || echo '$output'; } & disown)";
   };
 
-  # The GPG key keeps its own passphrase. A graphical pinentry lets the bar's
-  # agenda sync ask for it, and every use restarts the hour, so the key stays
-  # unlocked while the bar polls; a week bounds it.
+  # The GPG key keeps its own passphrase. The pinentry asks for it in the
+  # Quickshell bar (see pinentry.nix), and every use restarts the hour, so the
+  # key stays unlocked while the bar polls; a week bounds it.
   services.gpg-agent = {
     enable = true;
     defaultCacheTtl = 3600;
     maxCacheTtl = 604800;
-    pinentry.package = pkgs.pinentry-qt;
+    pinentry.package = import ./pinentry.nix { inherit pkgs; };
   };
 
   # Keep the pass store current; the activation hook in pass.nix clones it.
@@ -133,15 +130,6 @@ in {
     config = {
       modifier = mod;
       terminal = "ghostty";
-      menu = pkgs.lib.concatStringsSep " " [
-        "wmenu-run"
-        "-N ${hex colors.background}${opacity_alpha_hex}"
-        "-n ${hex colors.foreground}"
-        "-M ${hex accent.surface}"
-        "-m ${hex accent.primary}"
-        "-S ${hex accent.primary}"
-        "-s ${hex colors.background}"
-      ];
       input = {
         "*" = {
           dwt = "enabled";

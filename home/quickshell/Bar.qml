@@ -23,8 +23,15 @@ PanelWindow {
 
     readonly property alias shapeHovered: surface.hovered
     readonly property alias pointerPressed: surface.pressed
+    readonly property bool plainPillHovered: chrome.hoverPill !== null
 
     readonly property int barHeight: 28
+
+    readonly property bool launching:
+        Launcher.open && modelData !== undefined && Launcher.screen === modelData.name
+    // Where clicks reach the launcher rather than closing it.
+    readonly property rect launcherRect: launching
+        ? Qt.rect(launcher.x, 0, launcher.width, barHeight) : Qt.rect(0, 0, 0, 0)
 
     anchors.top: true
     anchors.left: true
@@ -65,7 +72,9 @@ PanelWindow {
         anchors.fill: parent
     }
 
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // Take the keyboard only while the passphrase prompt or launcher is up.
+    WlrLayershell.keyboardFocus: openMenu === "pinentry" || launching
+        ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     SystemClock {
         id: clock
@@ -127,6 +136,7 @@ PanelWindow {
         VolumeMenu { window: chrome }
         BluetoothFlyout { window: chrome }
         CalendarMenu { window: chrome }
+        PinentryMenu { window: chrome }
     }
 
     Item {
@@ -148,6 +158,15 @@ PanelWindow {
             monitor: bar.modelData ? bar.modelData.name : ""
         }
 
+        LauncherField {
+            id: launcher
+            x: Math.round(parent.width / 5)
+            width: cluster.x - x - Tokens.spacing.medium
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            active: bar.launching
+        }
+
         RowLayout {
             id: cluster
             anchors.right: parent.right
@@ -156,6 +175,16 @@ PanelWindow {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             spacing: Tokens.spacing.extraSmall
+
+            // Anchors the passphrase prompt; shown only while it is open or closing.
+            StatusPill {
+                menu: "pinentry"
+                visible: bar.openMenu === "pinentry"
+                    || (bar.shown === "pinentry" && chrome.reveal > 0.01)
+
+                glyph: String.fromCodePoint(0xf033e)  // md-lock
+                label: "passphrase"
+            }
 
             // Always-on keeps the screens awake; click toggles it like Mod+Shift+m.
             StatusPill {

@@ -14,6 +14,14 @@ let
   diskFree = pkgs.writeShellScript "disk-free" ''
     ${pkgs.coreutils}/bin/df -h --output=avail / | ${pkgs.coreutils}/bin/tail -n1
   '';
+
+  # Executables on PATH for the launcher, as wmenu-run lists them.
+  commands = pkgs.writeShellScript "list-commands" ''
+    IFS=:
+    ${pkgs.findutils}/bin/find -L $PATH -maxdepth 1 -type f -executable -printf '%f\n' 2>/dev/null \
+      | ${pkgs.coreutils}/bin/sort -u
+  '';
+
   # Generate the QML palette from the shared theme.
   themeQml = pkgs.writeText "Theme.qml" ''
     pragma Singleton
@@ -61,6 +69,7 @@ let
         readonly property string diskFree: "${diskFree}"
         readonly property string alwaysOn: "${alwaysOn}"
         readonly property string agenda: "${agenda}"
+        readonly property string commands: "${commands}"
     }
   '';
 
@@ -92,6 +101,10 @@ in {
   # module; nothing else is needed on the Quickshell side. The daemon itself is
   # enabled in the system config (hardware.bluetooth), not here.
   home.packages = [ pkgs.quickshell ];
+
+  # Mod+d opens the launcher in the bar.
+  wayland.windowManager.sway.config.menu =
+    "${pkgs.quickshell}/bin/quickshell ipc --path ${configDir}/shell.qml call launcher toggle";
 
   # Include the config store path in ExecStart so Home Manager restarts the
   # service whenever a QML component changes.

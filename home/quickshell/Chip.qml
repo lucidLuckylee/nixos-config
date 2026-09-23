@@ -20,10 +20,9 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Tokens.rounding.extraSmall
 
         color: chip.active
-            ? Theme.background
+            ? "transparent"
             : tap.pressed ? Qt.alpha(Theme.background, 0.24)
             : (hover.hovered && chip.available ? Qt.alpha(Theme.background, 0.14) : "transparent")
         border.width: 1
@@ -31,6 +30,11 @@ Item {
 
         Behavior on color { CAnim { motion: Motion.fastEffect } }
         Behavior on border.color { CAnim { motion: Motion.fastEffect } }
+    }
+
+    Frame {
+        anchors.fill: parent
+        shown: chip.active
     }
 
     Text {

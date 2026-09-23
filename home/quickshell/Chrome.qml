@@ -29,13 +29,34 @@ Item {
         return null;
     }
 
-    onCurrentChanged: {
-        const next = findPill(current);
+    // A hovered pill without a menu borrows the tab while no menu is open.
+    readonly property Item hoverPill: {
+        if (!pills) return null;
+        for (let i = 0; i < pills.children.length; i++) {
+            const pill = pills.children[i];
+            if (pill.menu === "" && pill.hovered) return pill;
+        }
+        return null;
+    }
+    readonly property bool hoverTab: hoverPill !== null && !open
+
+    property real tabShow: hoverTab ? 1 : 0
+    Behavior on tabShow { Anim { motion: Motion.fastEffect } }
+
+    onCurrentChanged: retarget()
+    onOpenChanged: retarget()
+    onHoverPillChanged: retarget()
+    onHoverTabChanged: retarget()
+
+    function retarget() {
+        // Leave a closing menu or fading tab where it was.
+        if (!open && !hoverTab) return;
+        const next = hoverTab ? hoverPill : findPill(current);
         if (next === tracked) return;
         const fromX = pillX, fromWidth = pillWidth;
         tracked = next;
         slide.stop();
-        if (reveal > 0.01 && next && fromWidth > 0) {
+        if ((reveal > 0.01 || tabShow > 0.01) && next && fromWidth > 0) {
             slideX = fromX - trackedX;
             slideWidth = fromWidth - trackedWidth;
             slide.start();
@@ -195,7 +216,7 @@ Item {
         }
     }
 
-    // Scanlines, a light along the bar's top edge and a rim light in the menu frame.
+    // Scanlines and a light along the bar's top edge.
     Item {
         id: lighting
         visible: false
@@ -220,41 +241,6 @@ Item {
             gradient: Gradient {
                 GradientStop { position: 0; color: lighting.lit }
                 GradientStop { position: 1; color: "transparent" }
-            }
-        }
-
-        Rectangle {
-            x: chrome.boxX
-            y: chrome.barHeight
-            width: lighting.rim
-            height: chrome.boxHeight
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: lighting.lit }
-                GradientStop { position: 1; color: "transparent" }
-            }
-        }
-
-        Rectangle {
-            x: chrome.boxX + chrome.boxWidth - lighting.rim
-            y: chrome.barHeight
-            width: lighting.rim
-            height: chrome.boxHeight
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: lighting.lit }
-            }
-        }
-
-        Rectangle {
-            x: chrome.boxX
-            y: chrome.barHeight + chrome.boxHeight - lighting.rim
-            width: chrome.boxWidth
-            height: Math.min(lighting.rim, chrome.boxHeight)
-            gradient: Gradient {
-                GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: lighting.lit }
             }
         }
     }
@@ -295,7 +281,8 @@ Item {
             readonly property real topRightRadius:
                 Math.min(accent.radius, chrome.liveInset)
 
-            fillColor: Qt.alpha(Theme.primary, Math.min(1, chrome.grow))
+            fillColor: Qt.alpha(Theme.primary,
+                                Math.min(1, Math.max(chrome.grow, chrome.tabShow)))
             strokeWidth: -1
 
             startX: accent.tabLeft
