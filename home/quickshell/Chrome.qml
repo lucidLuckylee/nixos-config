@@ -43,6 +43,15 @@ Item {
     property real tabShow: hoverTab ? 1 : 0
     Behavior on tabShow { Anim { motion: Motion.fastEffect } }
 
+    // Keep the selected pill red until its indicator finishes fading out.
+    Binding {
+        target: chrome.tracked
+        property: "highlighted"
+        value: chrome.reveal > 0.01 || chrome.tabShow > 0.01
+        when: chrome.tracked !== null
+        restoreMode: Binding.RestoreBindingOrValue
+    }
+
     onCurrentChanged: retarget()
     onOpenChanged: retarget()
     onHoverPillChanged: retarget()

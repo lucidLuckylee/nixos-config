@@ -50,7 +50,7 @@ Item {
             verticalAlignment: TextInput.AlignVCenter
             clip: true
 
-            color: Theme.primary
+            color: Theme.warm
             selectionColor: Theme.primary
             selectedTextColor: Theme.background
             font.family: Theme.fontFamily
@@ -105,7 +105,7 @@ Item {
                 id: label
                 anchors.centerIn: parent
                 text: entry.modelData
-                color: entry.ListView.isCurrentItem ? Theme.hot : Theme.foreground
+                color: entry.ListView.isCurrentItem ? Theme.hot : Theme.warm
                 font.family: Theme.fontFamily
                 font.pixelSize: Tokens.fontSize.small
             }

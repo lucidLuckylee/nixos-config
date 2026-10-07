@@ -86,7 +86,8 @@ Item {
                     text: chip.modelData.name
                     font.family: Theme.iconFont
                     font.pixelSize: 13
-                    color: Theme.hot
+                    color: chip.modelData.focused ? Theme.hot
+                        : (chip.modelData.urgent ? Theme.background : Theme.warm)
                     opacity: chip.modelData.focused || chip.modelData.active ? 1 : 0.75
                 }
 

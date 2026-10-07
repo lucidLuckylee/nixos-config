@@ -193,7 +193,7 @@ PanelWindow {
                 onActivated: AlwaysOn.toggle()
 
                 glyph: String.fromCodePoint(
-                    AlwaysOn.active ? 0xf0176 : 0xf0faa)  // md-coffee / md-coffee-off
+                    AlwaysOn.active ? 0xf0208 : 0xf0209)  // md-eye / md-eye-off
                 label: AlwaysOn.active ? "always-on" : ""
             }
 

@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 # Firefox theme and preferences. Preserve the existing profile directory
 # so history, logins and extensions remain available.
@@ -10,6 +10,22 @@ let
 in {
   programs.firefox = {
     enable = true;
+
+    # A native toolbar button controls the same live CSS preference. AutoConfig
+    # needs access to Firefox's UI modules to register the button.
+    package = pkgs.firefox.override (old: {
+      extraAutoConfig = (old.extraAutoConfig or "") + ''
+        pref("general.config.sandbox_enabled", false);
+      '';
+      extraPrefs = (old.extraPrefs or "") + builtins.readFile ./firefox/website-style-button.js;
+    });
+
+    # Set a default rather than a user.js value, which would reset the toggle
+    # on every start. Firefox persists the user's choice in prefs.js.
+    policies.Preferences."browser.theme.websiteCss.disabled" = {
+      Value = false;
+      Status = "default";
+    };
 
     # Keep the existing profile location across Home Manager default changes.
     configPath = ".mozilla/firefox";
@@ -82,60 +98,50 @@ in {
 
           --toolbar-bgcolor: var(--nx-bg) !important;
           --toolbar-color: var(--nx-fg) !important;
-          /* Firefox 153 spells these *-focus, not *-focus-*. The older
-             --toolbar-field-focus-background-color spelling that used to be
-             here is not a name anything reads, which is what let the default
-             grey through on click. */
-          --toolbar-field-background-color: var(--nx-surface) !important;
-          --toolbar-field-color: var(--nx-fg) !important;
-          --toolbar-field-border-color: var(--nx-dim) !important;
-
           --tab-selected-bgcolor: var(--nx-surface) !important;
           --tab-selected-textcolor: var(--nx-fg) !important;
           --lwt-tabs-border-color: var(--nx-dim) !important;
           --chrome-content-separator-color: var(--nx-dim) !important;
 
+          --sidebar-background-color: var(--nx-bg) !important;
+          --sidebar-text-color: var(--nx-fg) !important;
+        }
+
+        /* Keep shared popup tokens out of the stock address-bar menu. */
+        panel:not(.searchmode-switcher-panel),
+        menupopup {
           --arrowpanel-background: var(--nx-surface) !important;
           --arrowpanel-color: var(--nx-fg) !important;
           --arrowpanel-border-color: var(--nx-dim) !important;
 
-          --sidebar-background-color: var(--nx-bg) !important;
-          --sidebar-text-color: var(--nx-fg) !important;
+          --panel-border-radius: 0 !important;
+          --arrowpanel-border-radius: 0 !important;
+        }
 
-          /* Square off every radius Firefox routes through a variable. Doing
-             it here catches most widgets in one go; the handful that hardcode
-             their own radius are overridden individually below. */
+        #TabsToolbar,
+        #PersonalToolbar,
+        findbar {
           --border-radius-small: 0 !important;
           --border-radius-medium: 0 !important;
           --border-radius-large: 0 !important;
           --toolbarbutton-border-radius: 0 !important;
           --tab-border-radius: 0 !important;
-          --arrowpanel-border-radius: 0 !important;
-          --panel-border-radius: 0 !important;
         }
 
-        /* The stragglers that set a radius directly rather than via a var.
-           The address bar is deliberately absent from this list — its shape is
-           left stock along with the rest of its geometry. */
-        #searchbar,
+        /* Square off themed widgets without touching address-bar controls. */
         .tab-background,
-        .toolbarbutton-1 > .toolbarbutton-icon,
-        .toolbarbutton-1 > .toolbarbutton-badge-stack,
+        .toolbarbutton-1:not(#urlbar *) > .toolbarbutton-icon,
+        .toolbarbutton-1:not(#urlbar *) > .toolbarbutton-badge-stack,
         #TabsToolbar toolbarbutton > .toolbarbutton-icon,
-        .identity-box-button,
         menupopup,
-        panel {
+        panel:not(.searchmode-switcher-panel) {
           border-radius: 0 !important;
         }
 
-        /* Terminal typeface for the chrome. This is the single biggest lever
-           on "mechanical" — the tab titles and URL stop looking like a phone
-           app the moment they are set in the same font as the shell. Matches
-           the Alacritty family in ./shared.nix. */
-        #navigator-toolbox,
-        #urlbar,
-        .tabbrowser-tab .tab-label,
-        .urlbarView-row {
+        /* Terminal typeface for the themed tab and bookmarks toolbars. */
+        #TabsToolbar,
+        #PersonalToolbar,
+        .tabbrowser-tab .tab-label {
           font-family: "DejaVu Sans Mono", monospace !important;
           font-size: 11px !important;
           letter-spacing: 0.01em;
@@ -192,76 +198,7 @@ in {
           background-color: var(--nx-surface) !important;
         }
 
-        /* ── Address bar ─────────────────────────────────────────────
-           Colours only, geometry untouched.
-
-           These are classes, not ids. Firefox 153 rebuilt the address bar to
-           share its styles with the search bar and moved the internals from
-           #urlbar-background / #urlbar-input / #urlbar-input-container to
-           .urlbar-background / .urlbar-input / .urlbar-input-container. The
-           ids are simply gone — 0 occurrences in browser.xhtml — so every rule
-           written against them silently matched nothing, which is why the bar
-           kept its default grey on focus no matter what was set here.
-           #urlbar itself does still exist. */
-        .urlbar-background,
-        #searchbar {
-          background-color: var(--nx-surface) !important;
-          border: 1px solid var(--nx-dim) !important;
-        }
-        /* Focused must look identical to unfocused apart from the border.
-           Firefox's own rule is
-
-             .urlbar:is([focused], [open]) > .urlbar-background {
-               background-color: var(--urlbar-background-background-color-focused);
-             }
-
-           and that variable resolves to --toolbar-field-background-color-focus.
-           Note the word order: the earlier attempt here set
-           --toolbar-field-focus-background-color, which is not a name Firefox
-           reads, so the default grey came through untouched. Both the variable
-           and the element are pinned below rather than relying on either
-           alone. */
-        :root {
-          --toolbar-field-background-color-focus: ${accent.panel} !important;
-          --toolbar-field-border-color-focus: ${accent.primary} !important;
-          --urlbar-background-background-color-focused: ${accent.panel} !important;
-        }
-        .urlbar:is([focused], [open]) > .urlbar-background,
-        #urlbar[focused] > .urlbar-background,
-        #urlbar[open] > .urlbar-background {
-          background-color: var(--nx-surface) !important;
-          border-color: var(--nx-neon) !important;
-        }
-
-        /* The suggestions panel that drops out of the focused bar. */
-        .urlbarView,
-        .urlbarView-body-inner,
-        .urlbarView-results {
-          background-color: var(--nx-surface) !important;
-          border-color: var(--nx-dim) !important;
-        }
-        .urlbar-input,
-        #urlbar .urlbar-input-box,
-        #searchbar .searchbar-textbox {
-          color: var(--nx-fg) !important;
-        }
-
-        /* The address bar's geometry is deliberately left alone. An earlier
-           revision here fought Firefox's focus-expansion ("megabar") and only
-           made it worse — the field ended up spanning the window. Firefox
-           moves this machinery between releases and it is not worth chasing;
-           the stock dimensions and behaviour are fine. Only its colours are
-           set, further down. */
-
-        /* The dropdown of history/search suggestions under the address bar. */
-        .urlbarView-row[selected] > .urlbarView-row-inner,
-        .urlbarView-row:hover > .urlbarView-row-inner {
-          background-color: var(--nx-dim) !important;
-        }
-        .urlbarView-title strong,
-        .urlbarView-url {
-          color: var(--nx-neon) !important;
-        }
+        /* Address bar, search-engine picker and suggestions use Firefox defaults. */
 
         /* Findbar sits at the bottom and defaults to the light toolbar colour. */
         findbar {
@@ -283,29 +220,19 @@ in {
            5.4:1. (It was briefly swapped for a deeper red while the bar was
            light — on light cyan the neon collapsed to 2.5:1. Back on dark, the
            neon is the right one again.) */
-        #navigator-toolbox toolbarbutton .toolbarbutton-icon,
-        #navigator-toolbox .urlbar-icon,
-        #identity-icon,
-        #tracking-protection-icon,
-        #page-action-buttons image {
+        #navigator-toolbox toolbarbutton:not(#urlbar toolbarbutton) .toolbarbutton-icon {
           fill: var(--nx-hot) !important;
           color: var(--nx-hot) !important;
           -moz-context-properties: fill, fill-opacity !important;
           fill-opacity: 0.9 !important;
         }
-        #navigator-toolbox toolbarbutton:hover .toolbarbutton-icon {
+        #navigator-toolbox toolbarbutton:not(#urlbar toolbarbutton):hover .toolbarbutton-icon {
           fill-opacity: 1 !important;
         }
 
         /* Hover: a wash of the neon, flat and square. */
-        #navigator-toolbox toolbarbutton:hover {
+        #navigator-toolbox toolbarbutton:not(#urlbar toolbarbutton):hover {
           background-color: color-mix(in srgb, var(--nx-neon) 14%, transparent) !important;
-        }
-
-        .urlbar-input::selection,
-        #searchbar .searchbar-textbox::selection {
-          background-color: var(--nx-neon) !important;
-          color: var(--nx-bg) !important;
         }
 
         /* Bookmarks toolbar rides on the rastered surface. */
@@ -317,8 +244,12 @@ in {
           color: var(--nx-fg) !important;
         }
 
-        /* Links and in-chrome accents (menu checkmarks, focus rings). */
-        :root {
+        /* Accents for themed controls, leaving address-bar focus styling stock. */
+        #TabsToolbar,
+        #PersonalToolbar,
+        findbar,
+        panel:not(.searchmode-switcher-panel),
+        menupopup {
           --focus-outline-color: var(--nx-neon) !important;
           --link-color: var(--nx-blue) !important;
           accent-color: var(--nx-neon) !important;
@@ -365,56 +296,59 @@ in {
            The three properties below are safe on every site regardless, and
            carry the palette further than the background alone manages. */
         @-moz-document url-prefix("http://"), url-prefix("https://") {
-          html {
-            background-color: ${accent.panel} !important;
-          }
-          :root {
-            scrollbar-color: ${accent.line} ${accent.panel};
-            accent-color: ${accent.primary};
-          }
-          ::selection {
-            background-color: ${accent.primary};
-            color: ${colors.background};
-          }
+          /* Toggle website styling in about:config; a missing pref leaves it on. */
+          @media not -moz-pref("browser.theme.websiteCss.disabled") {
+            html {
+              background-color: ${accent.panel} !important;
+            }
+            :root {
+              scrollbar-color: ${accent.line} ${accent.panel};
+              accent-color: ${accent.primary};
+            }
+            ::selection {
+              background-color: ${accent.primary};
+              color: ${colors.background};
+            }
 
-          /* ── The raster, as a background rather than a layer ───────
-             This is the third attempt and the first correct one. The previous
-             two painted a fixed overlay on top of the page, which is why the
-             dots landed on video, then on buttons: an overlay is in front of
-             everything by definition, and CSS gives no way to cut holes in it.
+            /* ── The raster, as a background rather than a layer ───────
+               This is the third attempt and the first correct one. The previous
+               two painted a fixed overlay on top of the page, which is why the
+               dots landed on video, then on buttons: an overlay is in front of
+               everything by definition, and CSS gives no way to cut holes in it.
 
-             Making the raster a *background* inverts the relationship. Every
-             element that paints its own background — a button, an image, a
-             video, a focused search field — is drawn over its parent's
-             background as a matter of normal painting order, so it covers the
-             dots without being asked to. Nothing needs listing or excluding;
-             "in front of the raster" is simply what content already is.
+               Making the raster a *background* inverts the relationship. Every
+               element that paints its own background — a button, an image, a
+               video, a focused search field — is drawn over its parent's
+               background as a matter of normal painting order, so it covers the
+               dots without being asked to. Nothing needs listing or excluding;
+               "in front of the raster" is simply what content already is.
 
-             The three supporting properties:
+               The three supporting properties:
 
-             background-attachment: fixed anchors the grid to the viewport
-             rather than to each element, so html and body do not produce two
-             grids at different offsets — they line up as one.
+               background-attachment: fixed anchors the grid to the viewport
+               rather than to each element, so html and body do not produce two
+               grids at different offsets — they line up as one.
 
-             background-blend-mode: lighten blends the dots against the
-             element's *own* background colour, taking the per-channel maximum.
-             On a dark page (github.com is rgb(13,17,23)) the dots come
-             through; on a light one white stays white and they vanish, which
-             is the right answer for a site that never went dark.
+               background-blend-mode: lighten blends the dots against the
+               element's *own* background colour, taking the per-channel maximum.
+               On a dark page (github.com is rgb(13,17,23)) the dots come
+               through; on a light one white stays white and they vanish, which
+               is the right answer for a site that never went dark.
 
-             Only html and body are touched. Those two reliably carry a real
-             background colour, which the blend needs; going further down into
-             wrappers risks clobbering sprite and hero background-images, for
-             very little gain. Where a site paints an opaque wrapper over body
-             — YouTube's ytd-app — no dots appear, which is the acceptable
-             failure. */
-          html, body {
-            background-image: radial-gradient(
-              ${accent.rasterDot} 1px, transparent 1px) !important;
-            background-size: ${toString dotGap}px ${toString dotGap}px !important;
-            background-attachment: fixed !important;
-            background-repeat: repeat !important;
-            background-blend-mode: lighten !important;
+               Only html and body are touched. Those two reliably carry a real
+               background colour, which the blend needs; going further down into
+               wrappers risks clobbering sprite and hero background-images, for
+               very little gain. Where a site paints an opaque wrapper over body
+               — YouTube's ytd-app — no dots appear, which is the acceptable
+               failure. */
+            html, body {
+              background-image: radial-gradient(
+                ${accent.rasterDot} 1px, transparent 1px) !important;
+              background-size: ${toString dotGap}px ${toString dotGap}px !important;
+              background-attachment: fixed !important;
+              background-repeat: repeat !important;
+              background-blend-mode: lighten !important;
+            }
           }
         }
       '';

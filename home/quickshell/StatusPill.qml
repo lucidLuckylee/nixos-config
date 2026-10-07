@@ -13,13 +13,15 @@ Item {
     property bool clickable: false
     readonly property bool interactive: opens || clickable
 
-    Layout.fillHeight: opens
+    // Standalone buttons use the same full-height background as the hover tab.
+    Layout.fillHeight: interactive
     Layout.alignment: Qt.AlignVCenter
 
     property string glyph
     property string label
     // Own on-state for clickable pills; menu pills leave this false.
     property bool active: false
+    property bool highlighted: false
     property color tint: Theme.primary
 
     property bool alert: false
@@ -60,7 +62,8 @@ Item {
         Text {
             text: pill.glyph
             visible: text !== ""
-            color: pill.alert ? pill.tint : Theme.hot
+            color: pill.active || pill.highlighted ? Theme.hot
+                : (pill.alert ? pill.tint : Theme.warm)
             font.family: Theme.iconFont
             font.pixelSize: Tokens.fontSize.normal
 
@@ -70,7 +73,7 @@ Item {
         Text {
             text: pill.label
             visible: text !== ""
-            color: Theme.hot
+            color: pill.active || pill.highlighted ? Theme.hot : Theme.warm
             font.family: Theme.fontFamily
             font.pixelSize: Tokens.fontSize.small
         }
