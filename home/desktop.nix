@@ -19,6 +19,8 @@ let
 in {
   imports = [ ./common.nix ];
 
+  home.packages = [ pkgs.shotcut ];
+
   wayland.windowManager.sway.config = {
     # Dual-monitor layout: 144Hz primary on the left, 120Hz secondary right of
     # it. The two screens are different shapes — 16:9 and 16:10 — so they do not
