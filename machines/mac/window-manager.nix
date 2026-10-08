@@ -1,7 +1,8 @@
 { config, pkgs, lib, ... }:
 
 # Manage yabai and skhd with launchd. Remove competing manually installed
-# agents. After binary updates, renew their macOS Accessibility permissions.
+# agents. Accessibility grants are keyed on the binary's path, so both run from
+# stable copies outside the store; only real binary changes need re-approval.
 
 let
   theme = import ../../home/colors.nix;
@@ -20,6 +21,11 @@ let
     (if yabaiCfg.config != { } then "${toYabaiConfig yabaiCfg.config}" else "")
     + lib.optionalString (yabaiCfg.extraConfig != "") ("\n" + yabaiCfg.extraConfig + "\n"));
 
+  # Stable, root-volume locations for the TCC-granted binaries.
+  stableDir = "/usr/local/libexec/window-manager";
+  stableYabai = "${stableDir}/yabai";
+  stableSkhd = "${stableDir}/skhd";
+
   # The encrypted Nix volume may mount after launchd starts. Use /bin/sh to
   # wait for the executable; a timeout lets KeepAlive retry.
   waitThenExec = binary: args: [
@@ -36,7 +42,7 @@ let
   ];
 in {
   # Replace linker-signed signatures with plain ad-hoc signatures so macOS can
-  # persist Accessibility grants. Binary updates still require approval.
+  # persist Accessibility grants (the grant pins the path and the cdhash).
   nixpkgs.overlays = [
     (final: prev: {
       yabai = prev.yabai.overrideAttrs (old: {
@@ -118,15 +124,28 @@ in {
     StandardOutPath = "/tmp/yabai.out.log";
     StandardErrorPath = "/tmp/yabai.err.log";
     ProgramArguments = lib.mkForce
-      (waitThenExec "${yabaiCfg.package}/bin/yabai" ''-c "${yabaiConfigFile}"'');
+      (waitThenExec stableYabai ''-c "${yabaiConfigFile}"'');
   };
   launchd.user.agents.skhd.serviceConfig = {
     StandardOutPath = "/tmp/skhd.out.log";
     StandardErrorPath = "/tmp/skhd.err.log";
-    # /etc/skhdrc is on the root volume, so only the binary needs waiting for.
     ProgramArguments = lib.mkForce
-      (waitThenExec "${skhdCfg.package}/bin/skhd" "-c /etc/skhdrc");
+      (waitThenExec stableSkhd "-c /etc/skhdrc");
   };
+
+  # Copy only on content change: rewriting an identical binary is harmless, but
+  # skipping it keeps rebuilds from touching the granted files at all.
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    mkdir -p ${stableDir}
+    for pair in "${yabaiCfg.package}/bin/yabai:${stableYabai}" \
+                "${skhdCfg.package}/bin/skhd:${stableSkhd}"; do
+      src=''${pair%%:*}; dst=''${pair#*:}
+      if ! cmp -s "$src" "$dst"; then
+        echo "window-manager: installing $dst (re-grant Accessibility if it changed)" >&2
+        install -m 755 "$src" "$dst.new" && mv -f "$dst.new" "$dst"
+      fi
+    done
+  '';
 
   services.skhd = {
     enable = true;
