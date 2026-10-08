@@ -257,6 +257,14 @@ in {
           fi
         }
 
+        # Tint the terminal background red for the duration of an ssh session.
+        # Runs in a subshell so the EXIT trap restores it even on Ctrl-C.
+        function ssh (
+          trap "printf '\e]111\a' >/dev/tty" EXIT
+          printf '\e]11;#2A0A12\a' >/dev/tty
+          command ssh "$@"
+        )
+
         # Custom vi mode indicator function
         function ble/prompt/backslash:vim-mode {
           bleopt keymap_vi_mode_update_prompt:=1
