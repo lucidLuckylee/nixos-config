@@ -134,6 +134,10 @@ in {
   # Programs
   programs.bash = {
     enable = true;
+    # Use sudo so this also works in an interactive SSH session.
+    shellAliases.suspend = if isDarwin
+      then "sudo /usr/bin/pmset sleepnow"
+      else "sudo systemctl suspend";
     bashrcExtra = ''
       # Only configure ble.sh in interactive shells
       if [[ $- == *i* ]]; then
@@ -398,16 +402,47 @@ in {
     };
   };
 
+  # Prefer the Mac's LAN address at home/on the VPN; otherwise use its
+  # public port forward. Both routes verify the same pinned Mac host key.
+  home.file.".local/bin/desktop-ssh-proxy" = {
+    executable = true;
+    text = ''
+      #!${pkgs.runtimeShell}
+      set -eu
+      "$HOME/.local/bin/desktop-ssh-key"
+      if ${pkgs.coreutils}/bin/timeout 2 ${pkgs.bash}/bin/bash -c \
+        'exec 3<>/dev/tcp/192.168.1.190/22' >/dev/null 2>&1; then
+        exec ${pkgs.openssh}/bin/ssh -T -o HostName=192.168.1.190 -p 22 DesktopWake
+      fi
+      exec ${pkgs.openssh}/bin/ssh -T DesktopWake
+    '';
+  };
+
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
     settings = {
       "Desktop" = {
-        HostName = "home.munchy.gay";
-        Port = 2222;
+        HostName = "192.168.1.196";
+        Port = 22;
         User = "lucy";
         IdentityFile = "~/.ssh/desktop_ed25519";
         IdentitiesOnly = true;
+        ProxyCommand = "~/.local/bin/desktop-ssh-proxy";
+      };
+      "DesktopWake" = {
+        HostName = "home.munchy.gay";
+        Port = 2223;
+        User = "lee";
+        IdentityFile = "~/.ssh/desktop_ed25519";
+        IdentitiesOnly = true;
+        RequestTTY = "no";
+        ConnectTimeout = 10;
+        HostKeyAlias = "desktop-wake-mac";
+        StrictHostKeyChecking = "yes";
+        UserKnownHostsFile = toString (pkgs.writeText "desktop-wake-known-hosts" ''
+          desktop-wake-mac ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDu2uN52fnfRHaVsX03qMXg0PCZYx8U/KX7cB+hInR5+
+        '');
       };
       "ZeroSync" = {
         HostName = "168.119.139.152";

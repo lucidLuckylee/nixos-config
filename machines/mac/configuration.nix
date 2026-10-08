@@ -2,6 +2,25 @@
 
 # M4 Mac configuration. Shared home settings live in ../../home/shared.nix.
 
+let
+  desktopSshProxy = pkgs.writeShellScript "desktop-ssh-proxy" ''
+    set -eu
+    if ! /usr/bin/nc -z -G 2 192.168.1.196 22; then
+      echo "Waking desktop…" >&2
+      ${pkgs.wakeonlan}/bin/wakeonlan -i 192.168.1.255 78:92:9c:dd:76:c9 >&2
+      deadline=$((SECONDS + 90))
+      until /usr/bin/nc -z -G 2 192.168.1.196 22; do
+        if (( SECONDS >= deadline )); then
+          echo "Desktop did not become reachable within 90 seconds." >&2
+          exit 1
+        fi
+        sleep 2
+      done
+    fi
+    # stdout is exclusively the desktop's SSH stream, including its host key.
+    exec /usr/bin/nc -G 5 192.168.1.196 22
+  '';
+in
 {
   imports = [
     ../../modules/overlays.nix
@@ -15,12 +34,25 @@
 
   networking.hostName = "mac";
 
+  # Router: external TCP 2223 -> 192.168.1.190:22.
+  services.openssh = {
+    enable = true;
+    extraConfig = ''
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+    '';
+  };
+
   # Determinate manages the Nix daemon; disable nix-darwin's competing service.
   nix.enable = false;
 
   users.users.lee = {
     name = "lee";
     home = "/Users/lee";
+    openssh.authorizedKeys.keys = [
+      ''restrict,command="${desktopSshProxy}" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWue8yfSQOLcpmyp/M3+0xGdB4ci7xnhA6ZUXeGFW1/ desktop-wake-proxy''
+    ];
   };
 
   # Which user the system.defaults and activation scripts apply to.
