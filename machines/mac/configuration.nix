@@ -31,6 +31,9 @@
   # Léon — the same Neovim configuration the NixOS hosts get from modules/sway.nix
   environment.systemPackages = [
     nvim.packages.aarch64-darwin.default
+    (pkgs.writeShellScriptBin "wake-desktop" ''
+      exec ${pkgs.wakeonlan}/bin/wakeonlan -i 192.168.1.255 78:92:9c:dd:76:c9
+    '')
   ];
 
   # Home Manager configuration

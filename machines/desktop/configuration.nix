@@ -11,6 +11,29 @@
 
   networking.hostName = "desktop";
 
+  # The current Wi-Fi profile uses NetworkManager's default wake setting.
+  # 8 = magic packet; takes effect when the connection is next activated.
+  networking.networkmanager.connectionConfig."wifi.wake-on-wlan" = 8;
+  services.udev.extraRules = ''
+    ACTION=="add|change", SUBSYSTEM=="net", ATTR{address}=="78:92:9c:dd:76:c9", ATTR{device/power/wakeup}="enabled"
+  '';
+
+  services.openssh = {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PermitRootLogin = "no";
+      AllowUsers = [ "lucy" ];
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+    };
+  };
+
+  # Private key is encrypted in pass under ssh/desktop.
+  users.users.lucy.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWue8yfSQOLcpmyp/M3+0xGdB4ci7xnhA6ZUXeGFW1/ lucy desktop access"
+  ];
+
   # ── NVIDIA GPU ────────────────────────────────────────────────────
   services.xserver.videoDrivers = [ "nvidia" ];
 

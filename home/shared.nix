@@ -402,6 +402,13 @@ in {
     enable = true;
     enableDefaultConfig = false;
     settings = {
+      "Desktop" = {
+        HostName = "home.munchy.gay";
+        Port = 2222;
+        User = "lucy";
+        IdentityFile = "~/.ssh/desktop_ed25519";
+        IdentitiesOnly = true;
+      };
       "ZeroSync" = {
         HostName = "168.119.139.152";
         User = "root";
