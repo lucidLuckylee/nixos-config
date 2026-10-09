@@ -45,6 +45,9 @@
     powerManagement.enable = true;
   };
 
+  # Samsung SM981 NVMe hangs S3 suspend with deep power states.
+  boot.kernelParams = [ "nvme_core.default_ps_max_latency_us=0" ];
+
   # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
   hardware.enableRedistributableFirmware = true;
 
