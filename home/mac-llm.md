@@ -39,13 +39,25 @@ claude
 
 The wrapper maps main and subagent model aliases to `qwen3.5-9b` for that process
 only, including the managed Haiku subagent setting, and declares the actual
-32k context limit to Claude. A checked-in Qwen template preserves non-leading
+32k context limit to Claude, caps each response at 4096 tokens, and requests
+auto-compaction at 24576 tokens to leave room for tool results and generation.
+Only the core Bash, Read, Edit, Write, Glob, Grep and Skill tools are enabled.
+Optional MCP servers and the managed browser/frontend/Rust plugins are disabled
+for this process. In `pokebw2`, a fresh read-only request with the full catalogue
+exceeded 40k tokens; the scoped launcher starts around 10k with the same project
+instructions. It uses manual permission prompts: auto mode's separate safety
+classifier also exceeded 32k in the live tool test.
+Project CLAUDE.md, skills and safety hooks still load.
+A checked-in Qwen template preserves non-leading
 system messages that Claude injects; the original template throws HTTP 500
 on them. This compatibility change was required by the live harness test. It clears conflicting
-provider credentials. Existing Claude settings, hooks and tools still load.
+provider credentials. Existing Claude settings and permissions still load.
 Avoid supplying conflicting `--model` or `--settings` flags. A 9B model's agent
 reliability and the harness's context requirements must be assessed on real
-work; reduce loaded MCP tools/plugins if 32k context is exhausted.
+work. Start a fresh `mac-code` session after updating the launcher; resuming an
+oversized old conversation can still exceed the server's window. Keep file reads
+and command output bounded. Use normal `claude` for tasks requiring much larger
+context or stronger reasoning.
 
 For independent concurrent work, create git worktrees and run one `mac-code`
 per worktree. Inference is serialized to stay within the 16 GB Mac's memory.

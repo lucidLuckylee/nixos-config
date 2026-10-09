@@ -27,9 +27,26 @@ def agent_command(root, key, model, args):
                ANTHROPIC_MODEL=model, ANTHROPIC_SMALL_FAST_MODEL=model,
                ANTHROPIC_DEFAULT_OPUS_MODEL=model, ANTHROPIC_DEFAULT_SONNET_MODEL=model,
                ANTHROPIC_DEFAULT_HAIKU_MODEL=model, CLAUDE_CODE_SUBAGENT_MODEL=model)
-    # Override the managed haiku subagent setting for this invocation only.
-    settings = json.dumps({'env': {'CLAUDE_CODE_SUBAGENT_MODEL': model}})
-    return ['claude', '--settings', settings, '--model', model, *args], env
+    # The full MCP/plugin/tool catalogue can exceed 32K before the first turn.
+    # Keep project instructions, skills and hooks, but scope optional integrations
+    # and the built-in tools to this invocation. Normal Claude remains unchanged.
+    settings = json.dumps({
+        'env': {'CLAUDE_CODE_SUBAGENT_MODEL': model},
+        'enabledPlugins': {
+            'dev-browser@dev-browser-marketplace': False,
+            'frontend-design@claude-plugins-official': False,
+            'rust-analyzer-lsp@claude-plugins-official': False,
+        },
+    })
+    env.update(CLAUDE_CODE_MAX_CONTEXT_TOKENS='32768',
+               CLAUDE_CODE_AUTO_COMPACT_WINDOW='24576',
+               CLAUDE_CODE_MAX_OUTPUT_TOKENS='4096')
+    return ['claude', '--settings', settings, '--model', model,
+            # Auto mode's separate safety-classifier prompt also exceeds 32K.
+            # Use ordinary permission prompts, with project safety hooks intact.
+            '--permission-mode', 'manual',
+            '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
+            '--tools', 'Bash,Read,Edit,Write,Glob,Grep,Skill', *args], env
 
 MODEL = 'qwen3.5-9b'
 KEY_FILE = '.config/mac-llm/api-key'
@@ -48,7 +65,6 @@ def run(root, key, args):
         print('Mac Qwen endpoint is authenticated and ready: ' + MODEL)
         return 0
     command, env = agent_command(root, key, MODEL, args)
-    env['CLAUDE_CODE_MAX_CONTEXT_TOKENS'] = '32768'
     return subprocess.call(command, env=env)
 
 
