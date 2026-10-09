@@ -8,6 +8,14 @@ prompt, calls `llama_decode` exactly once, reads the option-letter logits at the
 answer slot, and applies v11's fitted Choice temperature (1.164). No answer token
 is generated. All candidate actions compete in that one forward pass.
 
+Decider uses a 256-token physical microbatch to reduce Metal compute workspace;
+the 8k logical batch/context and single `llama_decode` readout are unchanged.
+Long snapshots are processed internally in smaller chunks, which can trade
+throughput for lower memory usage. The former 2048-token microbatch reserved
+about 2 GB of Metal compute buffers even for short browser decisions.
+Measured on the M4: the new workspace is 254.51 MiB (previously 2036.09 MiB);
+the context cache remains 96 MiB and the calibrated single-decode readout works.
+
 The weights and `decider_config.json` are pinned to the same Hugging Face revision
 `ff2e5e687327eda9ac34e9a3ca84d3f400672c87`; runtime downloads verify SHA256
 before publication. Decider Q8 weighs 2.0 GB and is the project's recommended

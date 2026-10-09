@@ -18,7 +18,9 @@ int main(int argc, char **argv) {
     if (!model) return 2;
     auto cp = llama_context_default_params();
     cp.n_ctx = cp.n_batch = 8192;
-    cp.n_ubatch = 2048;
+    // Keep the 8k logical batch for one llama_decode, but reserve a smaller
+    // physical microbatch workspace on the 16 GB Mac (formerly ~2 GB Metal).
+    cp.n_ubatch = 256;
     cp.n_seq_max = 1;
     auto *ctx = llama_init_from_model(model, cp);
     if (!ctx) return 2;
