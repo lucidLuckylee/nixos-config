@@ -1,24 +1,15 @@
-# How the coding agents behave: Claude Code's settings, global memory and
-# output style, the Claude→Codex handoff, and the shared plans repo that every
-# machine clones. MCP servers for both tools live in mcp.nix.
+# How the coding agents behave: Claude Code's settings, global memory
+# and output style. MCP servers for both tools live in mcp.nix.
 { pkgs, lib, config, ... }:
 let
   plansRepo = "git@github.com:lucidLuckylee/plans.git";
   plansDir = "${config.home.homeDirectory}/Plans";
-
-  # Plumbing the handoff skill calls: plans sync, Codex quota, codex exec.
-  handoff = pkgs.writeShellApplication {
-    name = "handoff";
-    runtimeInputs = [
-      pkgs.git pkgs.coreutils pkgs.python3 config.programs.codex.package
-    ];
-    text = builtins.replaceStrings [ "@plansRepo@" "@plansDir@" ]
-      [ plansRepo plansDir ] (builtins.readFile ./agents/handoff.sh);
-  };
+  knowledgeBase = builtins.readFile ./agents/knowledge-base.md;
 
   # ── Claude Code global settings (merged into ~/.claude/settings.json) ──
   claudeSettings = {
-    model = "fable";
+    model = "sonnet";
+    env.CLAUDE_CODE_SUBAGENT_MODEL = "haiku";
     outputStyle = "Terse";
 
     permissions = {
@@ -37,19 +28,18 @@ let
     };
 
     enabledPlugins = {
-      "ralph-loop@claude-plugins-official" = true;
       "dev-browser@dev-browser-marketplace" = true;
       "rust-analyzer-lsp@claude-plugins-official" = true;
       "frontend-design@claude-plugins-official" = true;
     };
 
-    # Fresh plans on every session; the script only speaks up when it fails.
+    # Fresh notes on every session; a failed pull just leaves them as they were.
     hooks.SessionStart = [{
       matcher = "startup|resume";
       hooks = [{
         type = "command";
-        command = "${handoff}/bin/handoff sync";
-        timeout = 90;
+        command = "git -C ${plansDir} pull --ff-only --quiet || true";
+        timeout = 30;
       }];
     }];
   };
@@ -57,26 +47,14 @@ let
   claudeManagedSettings = pkgs.writeText "claude-managed-settings.json"
     (builtins.toJSON claudeSettings);
 in {
-  home.packages = [ handoff ];
-
   programs.claude-code = {
     enable = true;
     package = null; # shared.nix installs claude-code itself
-    context = ./agents/claude/CLAUDE.md;
+    context = builtins.readFile ./agents/claude/CLAUDE.md + knowledgeBase;
     outputStyles.terse = ./agents/claude/terse.md;
-    skills.handoff =
-      pkgs.replaceVars ./agents/claude/handoff/SKILL.md { inherit plansDir; };
   };
 
-  programs.codex = {
-    skills.implement-plan = ./agents/codex/implement-plan;
-    # `handoff run` layers this over config.toml and overrides the effort.
-    profiles.implement = {
-      model = "gpt-6-astra";
-      model_reasoning_effort = "high";
-      model_verbosity = "low";
-    };
-  };
+  programs.codex.context = knowledgeBase;
 
   # Merge managed Claude settings recursively, preserving other preferences.
   home.activation.setupClaudeSettings =
@@ -99,8 +77,8 @@ in {
       fi
     '';
 
-  # Every machine gets the plans repo at rebuild; offline only warns.
+  # Every machine gets the notes repo at rebuild; offline only warns.
   home.activation.clonePlans = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    ${handoff}/bin/handoff sync || true
+    [ -d ${plansDir}/.git ] || ${pkgs.git}/bin/git clone --quiet ${plansRepo} ${plansDir} || true
   '';
 }

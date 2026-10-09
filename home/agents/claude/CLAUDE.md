@@ -7,3 +7,6 @@
 - If you find a pre-existing bug or unrelated issue, leave it and mention it as a follow-up.
 - Add tests only where the task asks for them or the repo already tests this kind of change. Do not turn scratch checks into permanent test files.
 - Edit files surgically rather than rewriting them. Delete temporary files you created. Do not create documentation files unless asked.
+
+# Models
+- Delegate searches, file lookups, and bulk reads to subagents with model "haiku". Use "sonnet" for anything that needs judgment. Do not use Opus or Fable subagents unless asked.
