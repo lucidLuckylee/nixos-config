@@ -40,37 +40,53 @@ def agent_command(root, key, model, args):
     })
     env.update(CLAUDE_CODE_MAX_CONTEXT_TOKENS='32768',
                CLAUDE_CODE_AUTO_COMPACT_WINDOW='24576',
-               CLAUDE_CODE_MAX_OUTPUT_TOKENS='4096')
+               CLAUDE_CODE_MAX_OUTPUT_TOKENS='4096', MCP_TOOL_TIMEOUT='360000')
     return ['claude', '--settings', settings, '--model', model,
             # Auto mode's separate safety-classifier prompt also exceeds 32K.
             # Skip prompts as requested; project safety hooks still run.
             '--permission-mode', 'bypassPermissions',
-            '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
+            '--strict-mcp-config', '--mcp-config',
+            os.environ.get('MAC_LLM_MCP_CONFIG',
+                           str(Path.home() / '.config/mac-llm/mcp.json')),
+            '--append-system-prompt',
+            'Delegate web browser tasks to mcp__browser__browser_task. Give it '
+            'a URL, concrete task, done_when (the observable success condition), '
+            'and inputs mapping field labels to exact text to enter when needed. '
+            'Decider selects candidate actions from probabilities, it cannot '
+            'write text or plan. Interpret the returned page evidence yourself.',
             '--tools', 'Bash,Read,Edit,Write,Glob,Grep,Skill', *args], env
 
 MODEL = 'qwen3.5-9b'
 KEY_FILE = '.config/mac-llm/api-key'
 
 
-def ready(root, key):
+def ready(root, key, model=MODEL):
     req = urllib.request.Request(root + '/v1/models', headers={'Authorization': 'Bearer ' + key})
     with urllib.request.build_opener(NoRedirect).open(req, timeout=3) as response:
-        return MODEL in [entry['id'] for entry in json.load(response)['data']]
+        return model in [entry['id'] for entry in json.load(response)['data']]
 
 
-def run(root, key, args):
+def run(root, browser_root, key, args):
     if not ready(root, key):
         raise ValueError('Qwen model is absent from server')
     if sys.argv[1] == 'status':
+        request = urllib.request.Request(browser_root + '/health',
+            headers={'Authorization': 'Bearer ' + key})
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=10) as response:
+            status = json.load(response)
+        browser_ready = status.get('version') == 'v11' and status.get('ready')
         print('Mac Qwen endpoint is authenticated and ready: ' + MODEL)
-        return 0
+        print('Mapika/decider-2b v11: ' + ('ready (single-pass logits)' if browser_ready else 'unavailable'))
+        return 0 if browser_ready else 1
     command, env = agent_command(root, key, MODEL, args)
+    env.update(MAC_LLM_BROWSER_URL=browser_root, MAC_LLM_BROWSER_API_KEY=key)
     return subprocess.call(command, env=env)
 
 
 def main():
     if sys.platform == 'darwin':
-        return run('http://127.0.0.1:8081', (Path.home() / KEY_FILE).read_text().strip(), sys.argv[2:])
+        return run('http://127.0.0.1:8081', 'http://127.0.0.1:8082',
+                   (Path.home() / KEY_FILE).read_text().strip(), sys.argv[2:])
     ssh = ['ssh', '-F', os.environ['MAC_LLM_SSH_CONFIG'], '-T',
            '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=30',
            '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3']
@@ -78,11 +94,14 @@ def main():
     if not key or any(c in key for c in '\r\n'):
         raise ValueError('invalid server key')
     # Ask the OS for a free port. Each concurrent agent gets its own tunnel.
-    with socket.socket() as sock:
+    with socket.socket() as sock, socket.socket() as browser_sock:
         sock.bind(('127.0.0.1', 0))
+        browser_sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
+        browser_port = browser_sock.getsockname()[1]
     tunnel = subprocess.Popen(ssh + ['-N', '-o', 'ExitOnForwardFailure=yes',
-                                    '-L', f'127.0.0.1:{port}:127.0.0.1:8081', 'MacLLM'])
+                                    '-L', f'127.0.0.1:{port}:127.0.0.1:8081',
+                                    '-L', f'127.0.0.1:{browser_port}:127.0.0.1:8082', 'MacLLM'])
     try:
         root = f'http://127.0.0.1:{port}'
         deadline = time.monotonic() + 20
@@ -98,7 +117,7 @@ def main():
                 if time.monotonic() >= deadline:
                     raise ValueError('Mac server is unavailable; check its log') from None
                 time.sleep(0.25)
-        return run(root, key, sys.argv[2:])
+        return run(root, f'http://127.0.0.1:{browser_port}', key, sys.argv[2:])
     finally:
         tunnel.terminate()
         try:

@@ -109,6 +109,15 @@ let
   mcpConfigFile = pkgs.writeText "claude-mcp-servers.json"
     (builtins.toJSON mcpServers);
 
+  browserDelegate = pkgs.writeShellApplication {
+    name = "mac-browser-mcp";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      export MAC_BROWSER_PLAYWRIGHT_COMMAND=${mcpServers.playwright.command}
+      exec python3 ${./mac-browser.py}
+    '';
+  };
+
   # Reuse the server definitions for Codex.
   tomlFormat = pkgs.formats.toml { };
   codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
@@ -150,6 +159,15 @@ in {
     rust-mcp-server
     rust-analyzer-mcp
   ];
+
+  # Expose one browser task to the coding model, rather than the full catalogue.
+  # Decider selects concrete actions in Nix-managed Firefox through Playwright.
+  home.file.".config/mac-llm/mcp.json".text = builtins.toJSON {
+    mcpServers.browser = {
+      command = "${browserDelegate}/bin/mac-browser-mcp";
+      args = [];
+    };
+  };
 
   # Keep config.toml writable; Codex stores project trust alongside MCP settings.
   programs.codex.enable = true;

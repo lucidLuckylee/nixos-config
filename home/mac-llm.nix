@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 let
   proxy = pkgs.writeShellApplication {
     name = "mac-llm-ssh-proxy";
@@ -37,6 +37,7 @@ let
     runtimeInputs = [ pkgs.python3 pkgs.claude-code pkgs.openssh ];
     text = ''
 ${lib.optionalString (!pkgs.stdenv.hostPlatform.isDarwin) "export MAC_LLM_SSH_CONFIG=${sshConfig}"}
+      export MAC_LLM_MCP_CONFIG=${config.home.file.".config/mac-llm/mcp.json".source}
       exec python3 ${./mac-llm.py} ${action} "$@"
     '';
   };
