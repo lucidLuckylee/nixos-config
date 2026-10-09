@@ -45,8 +45,10 @@ Only the core Bash, Read, Edit, Write, Glob, Grep and Skill tools are enabled.
 Optional MCP servers and the managed browser/frontend/Rust plugins are disabled
 for this process. In `pokebw2`, a fresh read-only request with the full catalogue
 exceeded 40k tokens; the scoped launcher starts around 10k with the same project
-instructions. It uses manual permission prompts: auto mode's separate safety
-classifier also exceeded 32k in the live tool test.
+instructions. It uses `bypassPermissions`, as requested, to skip permission
+prompts and auto mode's separate safety classifier, which exceeded 32k in the
+live tool test. This applies only to `mac-code`; normal `claude` keeps its
+existing permission mode.
 Project CLAUDE.md, skills and safety hooks still load.
 A checked-in Qwen template preserves non-leading
 system messages that Claude injects; the original template throws HTTP 500

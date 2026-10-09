@@ -43,8 +43,8 @@ def agent_command(root, key, model, args):
                CLAUDE_CODE_MAX_OUTPUT_TOKENS='4096')
     return ['claude', '--settings', settings, '--model', model,
             # Auto mode's separate safety-classifier prompt also exceeds 32K.
-            # Use ordinary permission prompts, with project safety hooks intact.
-            '--permission-mode', 'manual',
+            # Skip prompts as requested; project safety hooks still run.
+            '--permission-mode', 'bypassPermissions',
             '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
             '--tools', 'Bash,Read,Edit,Write,Glob,Grep,Skill', *args], env
 
