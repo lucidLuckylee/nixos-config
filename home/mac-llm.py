@@ -9,7 +9,27 @@ import time
 import urllib.error
 import urllib.request
 
-from client import NoRedirect, agent_command
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None  # Never forward the bearer token to a redirect destination.
+
+
+
+def agent_command(root, key, model, args):
+    env = os.environ.copy()
+    # Remove conflicting credentials/routes inherited from other providers.
+    for name in tuple(env):
+        if name.startswith(('ANTHROPIC_', 'MAC_LLM_')) or name in {
+            'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK',
+            'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY'}:
+            env.pop(name, None)
+    env.update(ANTHROPIC_BASE_URL=root, ANTHROPIC_AUTH_TOKEN=key,
+               ANTHROPIC_MODEL=model, ANTHROPIC_SMALL_FAST_MODEL=model,
+               ANTHROPIC_DEFAULT_OPUS_MODEL=model, ANTHROPIC_DEFAULT_SONNET_MODEL=model,
+               ANTHROPIC_DEFAULT_HAIKU_MODEL=model, CLAUDE_CODE_SUBAGENT_MODEL=model)
+    # Override the managed haiku subagent setting for this invocation only.
+    settings = json.dumps({'env': {'CLAUDE_CODE_SUBAGENT_MODEL': model}})
+    return ['claude', '--settings', settings, '--model', model, *args], env
 
 MODEL = 'qwen3.5-9b'
 KEY_FILE = '.config/mac-llm/api-key'

@@ -83,7 +83,3 @@ Sources checked 2026-10-09:
 - https://huggingface.co/Qwen/Qwen3.5-9B
 - https://huggingface.co/unsloth/Qwen3.5-9B-GGUF
 - https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
-
-The existing Kaggle wrappers still use their separate runtime env file and
-HTTPS-only endpoint validation. The shared Claude invocation code is reused
-by both launchers; no global provider variables are set.

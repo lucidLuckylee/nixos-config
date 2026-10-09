@@ -37,7 +37,7 @@ let
     runtimeInputs = [ pkgs.python3 pkgs.claude-code pkgs.openssh ];
     text = ''
 ${lib.optionalString (!pkgs.stdenv.hostPlatform.isDarwin) "export MAC_LLM_SSH_CONFIG=${sshConfig}"}
-      exec python3 ${./kaggle-llm}/mac.py ${action} "$@"
+      exec python3 ${./mac-llm.py} ${action} "$@"
     '';
   };
 in {
