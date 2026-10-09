@@ -41,6 +41,8 @@
     modesetting.enable = true;
     package = config.boot.kernelPackages.nvidiaPackages.legacy_580;
     open = false;  # Proprietary driver (required for GTX 1080)
+    # Installs the nvidia-suspend/resume units; without them S3 resume hangs.
+    powerManagement.enable = true;
   };
 
   # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
