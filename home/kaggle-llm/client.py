@@ -65,10 +65,15 @@ def main():
             raise ValueError('configured model is absent from authenticated /v1/models')
         print('Authenticated endpoint is ready; model: ' + model)
         return
+    command, env = agent_command(root, key, model, sys.argv[2:])
+    os.execvpe('claude', command, env)
+
+
+def agent_command(root, key, model, args):
     env = os.environ.copy()
     # Remove conflicting credentials/routes inherited from other providers.
     for name in tuple(env):
-        if name.startswith(('ANTHROPIC_', 'KAGGLE_LLM_')) or name in {
+        if name.startswith(('ANTHROPIC_', 'KAGGLE_LLM_', 'MAC_LLM_')) or name in {
             'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK',
             'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY'}:
             env.pop(name, None)
@@ -78,7 +83,7 @@ def main():
                ANTHROPIC_DEFAULT_HAIKU_MODEL=model, CLAUDE_CODE_SUBAGENT_MODEL=model)
     # Override the managed haiku subagent setting for this invocation only.
     settings = json.dumps({'env': {'CLAUDE_CODE_SUBAGENT_MODEL': model}})
-    os.execvpe('claude', ['claude', '--settings', settings, '--model', model, *sys.argv[2:]], env)
+    return ['claude', '--settings', settings, '--model', model, *args], env
 
 
 if __name__ == '__main__':

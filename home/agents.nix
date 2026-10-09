@@ -47,7 +47,7 @@ let
   claudeManagedSettings = pkgs.writeText "claude-managed-settings.json"
     (builtins.toJSON claudeSettings);
 in {
-  imports = [ ./kaggle-llm.nix ];
+  imports = [ ./kaggle-llm.nix ./mac-llm.nix ];
 
   programs.claude-code = {
     enable = true;

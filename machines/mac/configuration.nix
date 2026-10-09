@@ -27,6 +27,7 @@ in
     ./window-manager.nix
     ./keyboard.nix
     ./wireguard.nix
+    ./llm.nix
   ];
 
   nixpkgs.hostPlatform = "aarch64-darwin";
