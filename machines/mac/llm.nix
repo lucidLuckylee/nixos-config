@@ -28,6 +28,7 @@ let
         --api-key-file '${keyDir}/api-key' --jinja \
         ${lib.optionalString claude "--chat-template-file ${./qwen3.5-agent.jinja}"} \
         --ctx-size ${toString context} --parallel 1 \
+        --cache-type-k q8_0 --cache-type-v q8_0 \
         --n-gpu-layers 99 --flash-attn on
     '';
   coding = makeServer {
@@ -36,7 +37,7 @@ let
     file = "Qwen3.5-9B-Q5_K_M.gguf";
     model = "qwen3.5-9b";
     port = 8081;
-    context = 32768;
+    context = 229376;
     claude = true;
   };
   decider = pkgs.stdenv.mkDerivation {

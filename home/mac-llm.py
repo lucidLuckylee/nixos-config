@@ -27,7 +27,7 @@ def agent_command(root, key, model, args):
                ANTHROPIC_MODEL=model, ANTHROPIC_SMALL_FAST_MODEL=model,
                ANTHROPIC_DEFAULT_OPUS_MODEL=model, ANTHROPIC_DEFAULT_SONNET_MODEL=model,
                ANTHROPIC_DEFAULT_HAIKU_MODEL=model, CLAUDE_CODE_SUBAGENT_MODEL=model)
-    # The full MCP/plugin/tool catalogue can exceed 32K before the first turn.
+    # Scope optional integrations so their catalogue does not dominate context.
     # Keep project instructions, skills and hooks, but scope optional integrations
     # and the built-in tools to this invocation. Normal Claude remains unchanged.
     settings = json.dumps({
@@ -38,11 +38,10 @@ def agent_command(root, key, model, args):
             'rust-analyzer-lsp@claude-plugins-official': False,
         },
     })
-    env.update(CLAUDE_CODE_MAX_CONTEXT_TOKENS='32768',
-               CLAUDE_CODE_AUTO_COMPACT_WINDOW='24576',
+    env.update(CLAUDE_CODE_MAX_CONTEXT_TOKENS='229376',
+               CLAUDE_CODE_AUTO_COMPACT_WINDOW='196608',
                CLAUDE_CODE_MAX_OUTPUT_TOKENS='4096', MCP_TOOL_TIMEOUT='360000')
     return ['claude', '--settings', settings, '--model', model,
-            # Auto mode's separate safety-classifier prompt also exceeds 32K.
             # Skip prompts as requested; project safety hooks still run.
             '--permission-mode', 'bypassPermissions',
             '--strict-mcp-config', '--mcp-config',

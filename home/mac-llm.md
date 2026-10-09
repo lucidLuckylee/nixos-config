@@ -1,6 +1,6 @@
 # Mac Qwen inference
 
-The Mac serves Qwen3.5-9B Q5_K_M for coding (localhost 8081, 32k context)
+The Mac serves Qwen3.5-9B Q5_K_M for coding (localhost 8081, 224k context)
 and **Mapika/decider-2b v11 Q8_0** for browser action selection (localhost 8082,
 8k decision context). Both use llama.cpp's Metal backend. Decider is a System-One
 classifier, not a chat model: each request renders the official plain state-first
@@ -15,6 +15,14 @@ throughput for lower memory usage. The former 2048-token microbatch reserved
 about 2 GB of Metal compute buffers even for short browser decisions.
 Measured on the M4: the new workspace is 254.51 MiB (previously 2036.09 MiB);
 the context cache remains 96 MiB and the calibrated single-decode readout works.
+
+Qwen's limit is 229376 tokens (224 × 1024), with one inference slot. Its K/V
+cache uses Q8_0 rather than F16 to limit memory use: estimated full-attention
+cache allocation is 3.72 GiB rather than 7 GiB at this window. The recurrent
+state, model weights and compute workspace are additional. Cache quantization
+changes precision and may affect output quality. This larger configuration was
+built without activating it; memory headroom and long-context throughput have
+not been measured. Long uncached prompts can take several minutes on the M4.
 
 The weights and `decider_config.json` are pinned to the same Hugging Face revision
 `ff2e5e687327eda9ac34e9a3ca84d3f400672c87`; runtime downloads verify SHA256
@@ -58,8 +66,8 @@ claude
 
 The wrapper maps main and subagent model aliases to `qwen3.5-9b` for that process
 only, including the managed Haiku subagent setting, and declares the actual
-32k context limit to Claude, caps each response at 4096 tokens, and requests
-auto-compaction at 24576 tokens to leave room for tool results and generation.
+224k context limit to Claude, caps each response at 4096 tokens, and requests
+auto-compaction at 196608 tokens (192k) to leave room for tool results and generation.
 Only the core Bash, Read, Edit, Write, Glob, Grep and Skill tools are enabled.
 The coding model sees a single `browser_task` MCP tool. Qwen supplies `task`,
 `url`, `done_when` (observable success condition), and optionally `inputs`
@@ -102,8 +110,8 @@ Avoid supplying conflicting `--model` or `--settings` flags. A 9B model's agent
 reliability and the harness's context requirements must be assessed on real
 work. Start a fresh `mac-code` session after updating the launcher; resuming an
 oversized old conversation can still exceed the server's window. Keep file reads
-and command output bounded. Use normal `claude` for tasks requiring much larger
-context or stronger reasoning.
+and command output bounded. Use normal `claude` for tasks requiring stronger
+reasoning.
 
 For independent concurrent work, create git worktrees and run one `mac-code`
 per worktree. Inference is serialized to stay within the 16 GB Mac's memory.
