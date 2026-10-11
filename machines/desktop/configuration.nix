@@ -11,12 +11,8 @@
 
   networking.hostName = "desktop";
 
-  # The current Wi-Fi profile uses NetworkManager's default wake setting.
-  # 8 = magic packet; takes effect when the connection is next activated.
-  networking.networkmanager.connectionConfig."wifi.wake-on-wlan" = 8;
-  services.udev.extraRules = ''
-    ACTION=="add|change", SUBSYSTEM=="net", ATTR{address}=="78:92:9c:dd:76:c9", ATTR{device/power/wakeup}="enabled"
-  '';
+  # Wake from power-off by magic packet over the wired port (Mac mini connects here).
+  networking.interfaces.enp5s0.wakeOnLan.enable = true;
 
   services.openssh = {
     enable = true;
@@ -41,12 +37,18 @@
     modesetting.enable = true;
     package = config.boot.kernelPackages.nvidiaPackages.legacy_580;
     open = false;  # Proprietary driver (required for GTX 1080)
-    # Installs the nvidia-suspend/resume units; without them S3 resume hangs.
-    powerManagement.enable = true;
   };
 
-  # Samsung SM981 NVMe hangs S3 suspend with deep power states.
-  boot.kernelParams = [ "nvme_core.default_ps_max_latency_us=0" ];
+  # Never suspend; the machine is powered off and woken instead.
+  systemd.targets = {
+    sleep.enable = false;
+    suspend.enable = false;
+    hibernate.enable = false;
+    hybrid-sleep.enable = false;
+  };
+
+  # Load nvidia-drm before sway starts; otherwise it replaces simpledrm mid-startup and sway aborts.
+  boot.initrd.kernelModules = [ "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
 
   # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
   hardware.enableRedistributableFirmware = true;

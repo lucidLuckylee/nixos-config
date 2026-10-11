@@ -7,7 +7,7 @@ let
     set -eu
     if ! /usr/bin/nc -z -G 2 192.168.1.196 22; then
       echo "Waking desktop…" >&2
-      ${pkgs.wakeonlan}/bin/wakeonlan -i 192.168.1.255 78:92:9c:dd:76:c9 >&2
+      ${pkgs.wakeonlan}/bin/wakeonlan -i 169.254.255.255 a8:a1:59:19:d8:53 >&2
       deadline=$((SECONDS + 90))
       until /usr/bin/nc -z -G 2 192.168.1.196 22; do
         if (( SECONDS >= deadline )); then
@@ -65,7 +65,7 @@ in
   environment.systemPackages = [
     nvim.packages.aarch64-darwin.default
     (pkgs.writeShellScriptBin "wake-desktop" ''
-      exec ${pkgs.wakeonlan}/bin/wakeonlan -i 192.168.1.255 78:92:9c:dd:76:c9
+      exec ${pkgs.wakeonlan}/bin/wakeonlan -i 169.254.255.255 a8:a1:59:19:d8:53
     '')
   ];
 
