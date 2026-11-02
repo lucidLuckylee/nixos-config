@@ -108,6 +108,11 @@ let
     exit 1
   '';
 
+  # /nix is a noauto volume that Determinate's daemon mounts after launchd has
+  # already started these services. Without waiting, launchd sees a missing
+  # executable at boot and never retries.
+  waitForStore = script: [ "/bin/sh" "-c" "/bin/wait4path /nix/store && exec ${script}" ];
+
   addClient = pkgs.writeShellScriptBin "wg-add-client" ''
     set -euo pipefail
     # sudo resets PATH, so reference the tools by store path.
@@ -192,14 +197,14 @@ in
   # file exists. Log: /var/log/njalla-ddns.log
   launchd.daemons.njalla-ddns = {
     serviceConfig = {
-      ProgramArguments = [ "${pkgs.writeShellScript "njalla-ddns-update" ''
+      ProgramArguments = waitForStore (pkgs.writeShellScript "njalla-ddns-update" ''
         set -u
         [ -s /etc/njalla-ddns.key ] || exit 0
         ${pkgs.curl}/bin/curl -4 -sS -m 20 \
           "https://njal.la/update/?h=${endpoint}&k=$(cat /etc/njalla-ddns.key)&auto" \
           || echo "njalla update failed"
         echo
-      ''}" ];
+      '');
       RunAtLoad = true;
       StartInterval = 300;
       StandardOutPath = "/var/log/njalla-ddns.log";
@@ -209,7 +214,7 @@ in
 
   launchd.daemons.wireguard = {
     serviceConfig = {
-      ProgramArguments = [ "${runScript}" ];
+      ProgramArguments = waitForStore runScript;
       RunAtLoad = true;
       KeepAlive = true;
       ThrottleInterval = 10;
