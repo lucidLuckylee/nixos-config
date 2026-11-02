@@ -5,11 +5,11 @@
 let
   desktopSshProxy = pkgs.writeShellScript "desktop-ssh-proxy" ''
     set -eu
-    if ! /usr/bin/nc -z -G 2 192.168.1.196 22; then
+    if ! /usr/bin/nc -z -G 2 10.42.0.2 22; then
       echo "Waking desktop…" >&2
-      ${pkgs.wakeonlan}/bin/wakeonlan -i 169.254.255.255 a8:a1:59:19:d8:53 >&2
+      ${pkgs.wakeonlan}/bin/wakeonlan -i 10.42.0.255 a8:a1:59:19:d8:53 >&2
       deadline=$((SECONDS + 90))
-      until /usr/bin/nc -z -G 2 192.168.1.196 22; do
+      until /usr/bin/nc -z -G 2 10.42.0.2 22; do
         if (( SECONDS >= deadline )); then
           echo "Desktop did not become reachable within 90 seconds." >&2
           exit 1
@@ -18,7 +18,7 @@ let
       done
     fi
     # stdout is exclusively the desktop's SSH stream, including its host key.
-    exec /usr/bin/nc -G 5 192.168.1.196 22
+    exec /usr/bin/nc -G 5 10.42.0.2 22
   '';
 in
 {
@@ -34,6 +34,12 @@ in
   nixpkgs.config.allowUnfree = true;
 
   networking.hostName = "mac";
+
+  # Direct cable to the desktop on the built-in Ethernet port: fixed address,
+  # no router, so Wi-Fi keeps the default route.
+  system.activationScripts.postActivation.text = ''
+    /usr/sbin/networksetup -setmanual Ethernet 10.42.0.1 255.255.255.0
+  '';
 
   # Router: external TCP 2223 -> 192.168.1.190:22.
   services.openssh = {
@@ -65,7 +71,7 @@ in
   environment.systemPackages = [
     nvim.packages.aarch64-darwin.default
     (pkgs.writeShellScriptBin "wake-desktop" ''
-      exec ${pkgs.wakeonlan}/bin/wakeonlan -i 169.254.255.255 a8:a1:59:19:d8:53
+      exec ${pkgs.wakeonlan}/bin/wakeonlan -i 10.42.0.255 a8:a1:59:19:d8:53
     '')
   ];
 

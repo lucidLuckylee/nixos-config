@@ -134,10 +134,6 @@ in {
   # Programs
   programs.bash = {
     enable = true;
-    # Use sudo so this also works in an interactive SSH session.
-    shellAliases.suspend = if isDarwin
-      then "sudo /usr/bin/pmset sleepnow"
-      else "sudo systemctl suspend";
     bashrcExtra = ''
       # Only configure ble.sh in interactive shells
       if [[ $- == *i* ]]; then
@@ -431,7 +427,8 @@ in {
     enableDefaultConfig = false;
     settings = {
       "Desktop" = {
-        HostName = "192.168.1.196";
+        # Reached over the Mac's cable; see desktopSshProxy in machines/mac.
+        HostName = "10.42.0.2";
         Port = 22;
         User = "lucy";
         IdentityFile = "~/.ssh/desktop_ed25519";

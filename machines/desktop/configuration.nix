@@ -11,8 +11,24 @@
 
   networking.hostName = "desktop";
 
-  # Wake from power-off by magic packet over the wired port (Mac mini connects here).
+  # Direct cable to the Mac mini, no router in between: fixed address, never
+  # the default route. The Mac wakes this port from power-off by magic packet.
   networking.interfaces.enp5s0.wakeOnLan.enable = true;
+  networking.networkmanager.ensureProfiles.profiles.mac-link = {
+    connection = {
+      id = "mac-link";
+      type = "ethernet";
+      interface-name = "enp5s0";
+      autoconnect-priority = 10;
+    };
+    ethernet.wake-on-lan = 64;  # magic packet
+    ipv4 = {
+      method = "manual";
+      address1 = "10.42.0.2/24";
+      never-default = true;
+    };
+    ipv6.method = "disabled";
+  };
 
   services.openssh = {
     enable = true;
