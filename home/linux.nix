@@ -150,6 +150,8 @@ in {
       focus = {
         wrapping = "yes";
       };
+      assigns = builtins.listToAttrs (map (ws: { name = ws.name; value = ws.assigns; })
+        (builtins.filter (ws: ws ? assigns) workspaces.named));
       keybindings = pkgs.lib.mkOptionDefault (
         builtins.listToAttrs (map (i: {
           name = "${mod}+Shift+${toString i}";
@@ -254,6 +256,9 @@ in {
     };
     extraConfig = ''
       bindsym ${mod}+0 workspace number 10
+      # A new Firefox window opened while already on its workspace stays in
+      # the background too; elsewhere the assign above already keeps focus put.
+      no_focus [app_id="^firefox$"]
     '';
   };
 }
