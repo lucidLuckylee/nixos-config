@@ -194,12 +194,6 @@ in {
     QT_QPA_PLATFORMTHEME = "gtk3";
   };
 
-  # Qt needs a platform theme plugin present to honour the variable above.
-  home.packages = with pkgs; [
-    libsForQt5.qtstyleplugins
-    qt6Packages.qt6ct
-  ];
-
   # GTK apps read the colour-scheme preference from dconf, not from the theme
   # name, and ignore the dark theme without it.
   dconf.settings."org/gnome/desktop/interface" = {

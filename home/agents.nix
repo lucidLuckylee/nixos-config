@@ -67,7 +67,8 @@ in {
       if [ -f "$CLAUDE_SETTINGS" ]; then
         # Recursive merge with the managed side winning, so a nested key Nix
         # does not name (an imperatively granted permission, say) survives.
-        ${pkgs.jq}/bin/jq -s '(.[0] | del(.env.CLAUDE_CODE_SUBAGENT_MODEL)) * .[1]' \
+        # enabledPlugins is wholly Nix's, so a plugin dropped here is disabled.
+        ${pkgs.jq}/bin/jq -s '(.[0] | del(.env.CLAUDE_CODE_SUBAGENT_MODEL, .enabledPlugins)) * .[1]' \
           "$CLAUDE_SETTINGS" ${claudeManagedSettings} \
           > "$CLAUDE_SETTINGS.tmp" \
           && mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"

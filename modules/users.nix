@@ -6,10 +6,7 @@
     isNormalUser = true;
     description = "Lucy";
     group = "lucy";
-    extraGroups = [ "wheel" "seat" "networkmanager" "libvirtd" "kvm" ];
+    extraGroups = [ "wheel" "seat" "networkmanager" ];
     shell = pkgs.bash;
-    # Podman rootless containers
-    subGidRanges = [{ count = 65536; startGid = 100000; }];
-    subUidRanges = [{ count = 65536; startUid = 100000; }];
   };
 }

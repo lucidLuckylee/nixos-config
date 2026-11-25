@@ -64,20 +64,21 @@
     ln -sfn ${pkgs.bash}/bin/bash /bin/bash
   '';
 
-  # Podman container support
-  virtualisation.podman = {
+  environment.systemPackages = with pkgs; [
+    pciutils
+    pulseaudio  # pactl for the volume keys
+  ];
+
+  # Audio through PipeWire; RTKit gives it realtime scheduling.
+  security.rtkit.enable = true;
+  services.pipewire = {
     enable = true;
-    dockerCompat = true;
+    alsa.enable = true;
+    pulse.enable = true;
   };
 
-  # QEMU/KVM for quickemu (macOS VMs, etc.)
-  virtualisation.libvirtd.enable = true;
-  environment.systemPackages = with pkgs; [
-    quickemu
-    libvirt
-    virt-manager
-    pciutils
-  ];
+  # Bluetooth for the Quickshell Bluetooth menu.
+  hardware.bluetooth.enable = true;
 
 
   # ── Gaming ──────────────────────────────────────────────────────
@@ -98,11 +99,6 @@
 
   # Expose system and Bluetooth battery state to Quickshell over D-Bus.
   services.upower.enable = true;
-
-  environment.etc."distrobox/distrobox.conf".text = ''
-    container_additional_volumes="/nix/store:/nix/store:ro
-    /etc/profiles/per-user:/etc/profiles/per-user:ro"
-  '';
 
   system.stateVersion = "25.05";
 }

@@ -17,7 +17,7 @@
     fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Track newer coding CLIs independently of the system package pin.
+    # Track claude-code independently of the system package pin.
     nixpkgs-cli.url = "github:NixOS/nixpkgs/master";
   };
 

@@ -40,7 +40,6 @@ in {
     ./firefox.nix
     ./telegram-theme.nix
     ./gtk.nix
-    ./tg.nix
     ./quickshell.nix
     ./wallpaper.nix
   ];
@@ -49,21 +48,42 @@ in {
   home.file."Usb".source = config.lib.file.mkOutOfStoreSymlink "/run/media/lucy";
 
   home.packages = with pkgs; [
-    bluez
     gcc
     telegram-desktop
     discord
-    swayidle
-    wl-clipboard
     remmina
     gowall              # Recolour images/wallpapers to a palette
     mpvpaper            # Animated wallpaper (see ./wallpaper.nix)
     vscode
+    fzf
+    chafa               # Inline images in the terminal
+    imv
+    mpv
+    zathura
 
     # Large development packages used only on the Linux hosts.
     texliveFull
     python3
     devenv
+  ];
+
+  # Use the shared palette for fzf.
+  home.sessionVariables.FZF_DEFAULT_OPTS = builtins.concatStringsSep " " [
+    "--color=bg+:${accent.panel}"
+    "--color=bg:-1"
+    "--color=fg:${accent.textDim}"
+    "--color=fg+:${accent.textBright}"
+    "--color=hl:${accent.primary}"
+    "--color=hl+:${accent.primary}"
+    "--color=info:${accent.primary}"
+    "--color=prompt:${accent.primary}"
+    "--color=spinner:${accent.primary}"
+    "--color=pointer:${accent.hot}"
+    "--color=marker:${accent.hot}"
+    "--color=header:${accent.line}"
+    "--color=border:${accent.line}"
+    "--color=gutter:${colors.background}"
+    "--border=sharp"
   ];
 
   fonts.fontconfig.enable = true;
@@ -72,7 +92,7 @@ in {
     update = "sudo nixos-rebuild switch --flake /home/lucy/NixOS";
     cleanup = "sudo nix-collect-garbage -d; sudo nixos-rebuild boot --flake /home/lucy/NixOS";
     wake-mac = "wakeonlan 1c:f6:4c:45:3a:91";
-    clone = "( { output=$(ghostty 2>&1) || echo '$output'; } & disown)";
+    clone = "( { output=$(ghostty 2>&1) || echo \"$output\"; } & disown)";
   };
 
   # The GPG key keeps its own passphrase. The pinentry asks for it in the
@@ -252,7 +272,8 @@ in {
             all = "";
           };
         }
-      ];
+      ] ++ builtins.concatMap (ws: map (criteria: { command = "urgent deny"; inherit criteria; }) ws.assigns)
+        (builtins.filter (ws: !(ws.urgent or true)) workspaces.named);
     };
     extraConfig = ''
       bindsym ${mod}+0 workspace number 10

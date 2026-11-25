@@ -9,17 +9,16 @@ in {
   programs.sway = {
     enable = true;
     wrapperFeatures.gtk = true;
+    # The defaults (foot, wmenu, swaylock, ...) go unused; the tools the config
+    # does call are installed where they are used.
+    extraPackages = [ ];
   };
 
   environment.systemPackages = with pkgs; [
     swaybg
-    swaylock
-    waybar
-    alacritty
     wl-clipboard
     grim slurp  # screenshots
     nvim.packages.x86_64-linux.default
-    distrobox
   ];
 
   # The portal's restricted PATH omits output choosers; use slurp's store path.

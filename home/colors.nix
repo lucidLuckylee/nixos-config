@@ -55,7 +55,6 @@
   };
 
   opacity = 0.9;
-  opacity_alpha_hex = "E5";
 
   # Window opacity does not apply to the solid Quickshell surfaces.
 

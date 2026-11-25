@@ -12,17 +12,5 @@
         '';
       });
     })
-
-    # tg needs the mailcap_fix submodule; importing the package breaks attachments.
-    # Fail the replacement if upstream changes the import.
-    (final: prev: {
-      tg = prev.tg.overrideAttrs (old: {
-        postPatch = (old.postPatch or "") + ''
-          substituteInPlace tg/utils.py \
-            --replace-fail 'import mailcap_fix as mailcap' \
-                           'from mailcap_fix import mailcap'
-        '';
-      });
-    })
   ];
 }

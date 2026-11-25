@@ -13,7 +13,6 @@
 
   # Direct cable to the Mac mini, no router in between: fixed address, never
   # the default route. The Mac wakes this port from power-off by magic packet.
-  networking.interfaces.enp5s0.wakeOnLan.enable = true;
   networking.networkmanager.ensureProfiles.profiles.mac-link = {
     connection = {
       id = "mac-link";
@@ -66,7 +65,7 @@
   # Load nvidia-drm before sway starts; otherwise it replaces simpledrm mid-startup and sway aborts.
   boot.initrd.kernelModules = [ "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
 
-  # ── WIFI CARD FENVI AX900 + BT5.4 ─────────────────────────────────
+  # Firmware for the Intel Wireless 7265 (Wi-Fi and Bluetooth).
   hardware.enableRedistributableFirmware = true;
 
   home-manager.users.lucy.imports = [ ../../home/desktop.nix ];

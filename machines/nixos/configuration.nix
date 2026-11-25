@@ -13,7 +13,5 @@
   networking.hostName = "nixos";
 
   # Laptop-specific hardware
-  hardware.bluetooth.enable = true;
-
   home-manager.users.lucy.imports = [ ../../home/laptop.nix ];
 }
