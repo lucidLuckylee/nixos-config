@@ -1,4 +1,6 @@
-// Wi-Fi radio, scanning and network actions.
+// Wi-Fi radio, scanning and network actions. Clicking a network connects or
+// disconnects it; a secured network without a saved password asks for one here,
+// since nothing else answers NetworkManager's request for secrets.
 
 import Quickshell.Networking
 import QtQuick
@@ -9,94 +11,141 @@ MenuPage {
 
     name: "wifi"
 
-    readonly property var device: {
-        const devices = Networking.devices.values;
-        return devices.find(d => d.type === DeviceType.Wifi) ?? null;
-    }
-
-    readonly property bool live: device !== null && Networking.wifiEnabled
+    readonly property var device: Status.wifiDevice
+    readonly property bool live: Status.wifiLive
 
     readonly property int gap: Tokens.spacing.small
-    readonly property int headerHeight: 22
-    readonly property int rowHeight: 30
-
     readonly property int maxRows: 5
-
     readonly property int rows: live ? Math.min(maxRows, Math.max(1, networks.length)) : 0
 
-    contentWidth: live ? 300 : 26
-    contentHeight: headerHeight + (rows > 0 ? gap + rows * (rowHeight + gap) - gap : 0)
+    // The network whose password is being typed, and the one being joined.
+    property var asking: null
+    property var joining: null
+    property bool joinedWithPassword: false
+    property string notice: ""
 
-    maxContentHeight: headerHeight + gap + maxRows * (rowHeight + gap) - gap
+    typing: asking !== null && active
 
-    // Accept either fractional or percentage signal strength.
-    function normalised(raw) {
-        return raw > 1 ? raw / 100 : raw;
+    contentWidth: live ? 300 : Tokens.size.chip
+    contentHeight: asking ? promptHeight : listHeight(rows)
+    maxContentHeight: Math.max(listHeight(maxRows), promptHeight)
+
+    readonly property int noticeHeight: notice !== "" ? gap + Tokens.size.control : 0
+    readonly property int promptHeight:
+        Tokens.size.control + 2 * (gap + Tokens.size.row) + noticeHeight
+
+    function listHeight(n) {
+        return Tokens.size.control + (n > 0 ? n * (Tokens.size.row + gap) : 0) + noticeHeight;
     }
 
     readonly property var networks: {
-        if (!live) return [];
+        if (!live || !device) return [];
 
         return [...device.networks.values]
             .filter(n => n.name)
             .sort((a, b) =>
                 (b.connected - a.connected)
                 || (b.known - a.known)
-                || (menu.normalised(b.signalStrength) - menu.normalised(a.signalStrength))
+                || (Status.strength(b) - Status.strength(a))
                 || a.name.localeCompare(b.name)
-            ).slice(0, maxRows);
+            );
+    }
+
+    function takesPassword(network) {
+        return [WifiSecurityType.WpaPsk, WifiSecurityType.Wpa2Psk, WifiSecurityType.Sae]
+            .includes(network.security);
+    }
+
+    function activate(network) {
+        notice = "";
+        if (network.connected) {
+            network.disconnect();
+        } else if (!network.known && takesPassword(network)) {
+            ask(network, "");
+        } else {
+            join(network, false);
+            network.connect();
+        }
+    }
+
+    function join(network, withPassword) {
+        joining = network;
+        joinedWithPassword = withPassword;
+    }
+
+    function ask(network, message) {
+        asking = network;
+        notice = message;
+        field.text = "";
+        field.echoMode = TextInput.Password;
+        field.forceActiveFocus();
+    }
+
+    function submit() {
+        if (!asking || field.text === "") return;
+        notice = "";
+        join(asking, true);
+        asking.connectWithPsk(field.text);
+        field.text = "";
+        asking = null;
+    }
+
+    function cancel() {
+        asking = null;
+        notice = "";
+        field.text = "";
+    }
+
+    onActiveChanged: if (!active) cancel()
+    onLiveChanged: if (!live) cancel()
+
+    // Without a secret agent, a missing or wrong password comes back as a
+    // failure; ask for it rather than failing silently.
+    Connections {
+        target: menu.joining
+        function onConnectionFailed(reason) {
+            const network = menu.joining;
+            menu.joining = null;
+            if (menu.takesPassword(network) && reason !== ConnectionFailReason.WifiNetworkLost)
+                menu.ask(network, menu.joinedWithPassword ? "wrong password, try again" : "");
+            else
+                menu.notice = "couldn't join " + network.name;
+        }
+        function onConnectedChanged() {
+            if (menu.joining && menu.joining.connected) menu.joining = null;
+        }
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: menu.gap
 
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: menu.headerHeight
+        RadioHeader {
+            page: menu
+            onGlyph: String.fromCodePoint(0xf05a9)   // md-wifi
+            offGlyph: String.fromCodePoint(0xf05aa)  // md-wifi-off
+            live: menu.live
+            available: menu.device !== null && Networking.wifiHardwareEnabled
+            scanning: menu.device !== null && menu.device.scannerEnabled
 
-            Chip {
-                id: radio
-
-                x: Math.max(0, Math.min(parent.width - width, menu.pillAnchor))
-                anchors.verticalCenter: parent.verticalCenter
-
-                glyph: String.fromCodePoint(
-                    menu.live ? 0xf05a9    // md-wifi
-                              : 0xf05aa)   // md-wifi-off
-                active: menu.live
-
-                available: menu.device !== null && Networking.wifiHardwareEnabled
-                onToggled: Networking.wifiEnabled = !Networking.wifiEnabled
-            }
-
-            Chip {
-                x: radio.x - width - Tokens.spacing.small
-                anchors.verticalCenter: parent.verticalCenter
-
-                opacity: menu.live ? 1 : 0
-                visible: opacity > 0
-                Behavior on opacity { Anim { motion: Motion.fastEffect } }
-
-                glyph: String.fromCodePoint(0xf0349)  // md-magnify
-                active: menu.device !== null && menu.device.scannerEnabled
-                available: menu.live
-                working: menu.device !== null && menu.device.scannerEnabled
-                onToggled: menu.device.scannerEnabled = !menu.device.scannerEnabled
-            }
+            onPowerToggled: Networking.wifiEnabled = !Networking.wifiEnabled
+            onScanToggled: menu.device.scannerEnabled = !menu.device.scannerEnabled
         }
 
         Loader {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            opacity: menu.live ? 1 : 0
+            opacity: menu.live && !menu.asking ? 1 : 0
             visible: opacity > 0
             active: menu.live || opacity > 0
             Behavior on opacity { Anim { motion: Motion.fastEffect } }
 
             sourceComponent: networkList
         }
+
+        // Keeps the header at the top while the list is hidden.
+        Item { Layout.fillHeight: true }
     }
 
     Component {
@@ -105,149 +154,223 @@ MenuPage {
         ColumnLayout {
             spacing: menu.gap
 
-            Repeater {
-                model: menu.networks
+            // Shows up to maxRows networks; the rest scroll.
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: menu.rows * (Tokens.size.row + menu.gap) - menu.gap
+                visible: menu.networks.length > 0
 
-                Item {
-                    id: row
+                Flickable {
+                    id: scroller
 
-                    required property var modelData
-                    required property int index
+                    readonly property bool scrollable: contentHeight > height
 
-                    readonly property real strength: menu.normalised(modelData.signalStrength)
+                    anchors.fill: parent
+                    anchors.rightMargin: scrollable ? Tokens.spacing.small : 0
+                    contentHeight: rowColumn.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
 
-                    readonly property bool busy: modelData.stateChanging
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: menu.rowHeight
-
-                    opacity: 0
-                    scale: 0.7
-                    Component.onCompleted: entry.start()
-
-                    SequentialAnimation {
-                        id: entry
-                        PauseAnimation { duration: row.index * 40 }
-                        ParallelAnimation {
-                            Anim {
-                                target: row; property: "opacity"
-                                to: 1; motion: Motion.effect
-                            }
-                            Anim {
-                                target: row; property: "scale"
-                                to: 1; motion: Motion.spatial
-                            }
-                        }
+                    Connections {
+                        target: menu
+                        function onActiveChanged() { if (menu.active) scroller.contentY = 0; }
                     }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        color: !row.modelData.connected && rowHover.hovered
-                            ? Qt.alpha(Theme.background, 0.10) : "transparent"
+                    ColumnLayout {
+                        id: rowColumn
+                        width: scroller.width
+                        spacing: menu.gap
 
-                        Behavior on color { CAnim { motion: Motion.fastEffect } }
-                    }
+                        Repeater {
+                            model: menu.networks
 
-                    Frame {
-                        anchors.fill: parent
-                        shown: row.modelData.connected
-                    }
+                            MenuRow {
+                                id: row
 
-                    HoverHandler { id: rowHover }
+                                required property var modelData
+                                required property int index
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Tokens.spacing.medium
-                        spacing: Tokens.spacing.small
+                                readonly property real strength: Status.strength(modelData)
+                                readonly property bool busy: modelData.stateChanging
 
-                        Text {
-                            text: {
-                                const s = row.strength;
-                                if (s > 0.75) return String.fromCodePoint(0xf0928);
-                                if (s > 0.5)  return String.fromCodePoint(0xf0925);
-                                if (s > 0.25) return String.fromCodePoint(0xf0922);
-                                return String.fromCodePoint(0xf091f);  // md-wifi-strength-1..4
-                            }
-                            color: row.modelData.connected
-                                ? Theme.primary : Qt.alpha(Theme.background, 0.75)
-                            font.family: Theme.iconFont
-                            font.pixelSize: Tokens.fontSize.normal
+                                page: menu
+                                entryIndex: index
+                                current: modelData.connected
+                                clickable: !busy
+                                onClicked: menu.activate(row.modelData)
 
-                            Behavior on color { CAnim { motion: Motion.fastEffect } }
-                        }
+                                Icon {
+                                    text: Status.wifiGlyph(row.strength)
+                                    color: row.busy ? Theme.warm
+                                         : row.current ? Theme.primary : Qt.alpha(Theme.background, 0.75)
+                                    Behavior on color { CAnim { motion: Motion.fastEffect } }
+                                    Pulse on opacity { running: row.busy }
+                                }
 
-                        Text {
-                            Layout.fillWidth: true
-                            Layout.leftMargin: Tokens.spacing.extraSmall
-                            text: row.modelData.name
-                            elide: Text.ElideRight
-                            color: row.modelData.connected
-                                ? Theme.primary
-                                : Qt.alpha(Theme.background, row.modelData.known ? 1 : 0.7)
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Tokens.fontSize.small
-                        }
+                                Label {
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: Tokens.spacing.extraSmall
+                                    text: row.modelData.name
+                                    elide: Text.ElideRight
+                                    color: row.current
+                                        ? Theme.primary
+                                        : Qt.alpha(Theme.background, row.modelData.known ? 1 : 0.7)
+                                }
 
-                        Text {
-                            text: Math.round(row.strength * 100) + "%"
-                            color: row.modelData.connected
-                                ? Qt.alpha(Theme.primary, 0.8)
-                                : Qt.alpha(Theme.background, 0.6)
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Tokens.fontSize.small
-                        }
+                                // A lock marks networks that will ask for a password.
+                                Icon {
+                                    visible: !row.modelData.known && menu.takesPassword(row.modelData)
+                                    text: String.fromCodePoint(0xf033e)  // md-lock
+                                    color: Qt.alpha(Theme.background, 0.5)
+                                    font.pixelSize: Tokens.fontSize.small
+                                }
 
-                        Text {
-                            id: link
-                            text: String.fromCodePoint(
-                                row.modelData.connected ? 0xf0338    // md-link-off
-                                                        : 0xf0337)   // md-link
-                            color: row.busy ? Theme.warm
-                                 : row.modelData.connected ? Theme.primary
-                                 : (linkHover.hovered ? Theme.background
-                                                      : Qt.alpha(Theme.background, 0.6))
-                            font.family: Theme.iconFont
-                            font.pixelSize: Tokens.fontSize.normal
-                            leftPadding: Tokens.spacing.extraSmall
-                            rightPadding: Tokens.spacing.extraSmall
-
-                            Behavior on color { CAnim { motion: Motion.fastEffect } }
-
-                            SequentialAnimation on opacity {
-                                running: row.busy
-                                loops: Animation.Infinite
-                                onStopped: link.opacity = 1
-                                NumberAnimation { from: 1; to: 0.3; duration: 700; easing.type: Easing.InOutSine }
-                                NumberAnimation { from: 0.3; to: 1; duration: 700; easing.type: Easing.InOutSine }
-                            }
-
-                            HoverHandler { id: linkHover }
-                            TapHandler {
-                                enabled: !row.busy
-                                // Secured unknown networks need credentials from an external network manager.
-                                onTapped: {
-                                    if (row.modelData.connected) row.modelData.disconnect();
-                                    else row.modelData.connect();
+                                Label {
+                                    text: Math.round(row.strength * 100) + "%"
+                                    rightPadding: Tokens.spacing.extraSmall
+                                    color: row.current
+                                        ? Qt.alpha(Theme.primary, 0.8)
+                                        : Qt.alpha(Theme.background, 0.6)
                                 }
                             }
                         }
                     }
                 }
+
+                Rectangle {
+                    visible: scroller.scrollable
+                    anchors.right: parent.right
+                    y: scroller.visibleArea.yPosition * parent.height
+                    width: 2
+                    height: scroller.visibleArea.heightRatio * parent.height
+                    radius: 1
+                    color: Qt.alpha(Theme.background, 0.4)
+                }
             }
 
-            Text {
+            Label {
                 Layout.fillWidth: true
-                Layout.preferredHeight: menu.rowHeight
+                Layout.preferredHeight: Tokens.size.row
                 verticalAlignment: Text.AlignVCenter
                 visible: menu.networks.length === 0
                 color: Qt.alpha(Theme.background, 0.7)
-                font.family: Theme.fontFamily
-                font.pixelSize: Tokens.fontSize.small
                 text: menu.device && menu.device.scannerEnabled
                     ? "scanning…" : "no networks"
             }
 
+            Label {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Tokens.size.control
+                verticalAlignment: Text.AlignVCenter
+                visible: menu.notice !== ""
+                text: menu.notice
+                elide: Text.ElideRight
+                color: Theme.hot
+            }
+
             Item { Layout.fillHeight: true }
+        }
+    }
+
+    // The password prompt takes the list's place below the header.
+    ColumnLayout {
+        y: Tokens.size.control + menu.gap
+        width: parent.width
+        spacing: menu.gap
+
+        opacity: menu.asking ? 1 : 0
+        visible: opacity > 0
+        enabled: menu.asking !== null
+        Behavior on opacity { Anim { motion: Motion.fastEffect } }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Tokens.size.row
+
+            Icon {
+                id: lock
+                anchors.left: parent.left
+                anchors.leftMargin: Tokens.spacing.medium
+                anchors.verticalCenter: parent.verticalCenter
+                text: String.fromCodePoint(0xf033e)  // md-lock
+            }
+
+            Label {
+                anchors.left: lock.right
+                anchors.leftMargin: Tokens.spacing.small
+                anchors.right: close.left
+                anchors.rightMargin: Tokens.spacing.small
+                anchors.verticalCenter: parent.verticalCenter
+                text: menu.asking ? menu.asking.name : ""
+                elide: Text.ElideRight
+                font.pixelSize: Tokens.fontSize.normal
+            }
+
+            Chip {
+                id: close
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                glyph: String.fromCodePoint(0xf0156)  // md-close
+                onToggled: menu.cancel()
+            }
+        }
+
+        Frame {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Tokens.size.row
+
+            TextInput {
+                id: field
+                anchors.left: parent.left
+                anchors.right: reveal.left
+                anchors.leftMargin: Tokens.spacing.medium
+                anchors.rightMargin: Tokens.spacing.small
+                anchors.verticalCenter: parent.verticalCenter
+                clip: true
+
+                echoMode: TextInput.Password
+                color: Theme.primary
+                selectionColor: Theme.primary
+                selectedTextColor: Theme.background
+                font.family: Theme.fontFamily
+                font.pixelSize: Tokens.fontSize.small
+
+                Keys.onReturnPressed: menu.submit()
+                Keys.onEnterPressed: menu.submit()
+                Keys.onEscapePressed: menu.cancel()
+            }
+
+            // Show or hide the typed password.
+            Icon {
+                id: reveal
+                anchors.right: parent.right
+                anchors.rightMargin: Tokens.spacing.medium
+                anchors.verticalCenter: parent.verticalCenter
+
+                readonly property bool shown: field.echoMode === TextInput.Normal
+                text: String.fromCodePoint(shown ? 0xf0209 : 0xf0208)  // md-eye-off / md-eye
+                color: revealHover.hovered || shown ? Theme.primary : Qt.alpha(Theme.primary, 0.6)
+
+                HoverHandler {
+                    id: revealHover
+                    cursorShape: Qt.PointingHandCursor
+                }
+                TapHandler {
+                    onTapped: {
+                        field.echoMode = reveal.shown ? TextInput.Password : TextInput.Normal;
+                        field.forceActiveFocus();
+                    }
+                }
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Tokens.size.control
+            verticalAlignment: Text.AlignVCenter
+            visible: menu.notice !== ""
+            text: menu.notice
+            color: Theme.hot
         }
     }
 }

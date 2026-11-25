@@ -17,7 +17,7 @@ ShellRoot {
                 pointerPressed: bar.pointerPressed
                 plainPillHovered: bar.plainPillHovered
                 pinned: Pinentry.pending && Pinentry.screen === shell.modelData.name
-                    ? "pinentry" : ""
+                    ? "pinentry" : bar.typingMenu
             }
 
             EdgeGlow { modelData: shell.modelData }

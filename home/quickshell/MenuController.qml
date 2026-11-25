@@ -21,8 +21,12 @@ QtObject {
     readonly property int switchDelay: 110
     readonly property int closeDelay: 350
     // A menu that must stay up, like a passphrase prompt, overrides hover and clicks.
+    // Once released it closes like any other menu, after the pointer leaves.
     property string pinned: ""
-    onPinnedChanged: openMenu = pinned
+    onPinnedChanged: {
+        if (pinned !== "") openMenu = pinned;
+        else reconsider();
+    }
 
     // Hovering a pill without a menu closes the open one so the tab can move there.
     property bool plainPillHovered: false

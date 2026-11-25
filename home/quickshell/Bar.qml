@@ -2,10 +2,8 @@
 
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.I3
 import Quickshell.Io
-import Quickshell.Bluetooth
-import Quickshell.Networking
-import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import QtQuick
 import QtQuick.Layouts
@@ -24,8 +22,19 @@ PanelWindow {
     readonly property alias shapeHovered: surface.hovered
     readonly property alias pointerPressed: surface.pressed
     readonly property bool plainPillHovered: chrome.hoverPill !== null
+    // A menu that is taking typed input, like a Wi-Fi password; it stays open meanwhile.
+    readonly property string typingMenu: chrome.typingMenu
 
     readonly property int barHeight: 28
+
+    // Sway's binding mode, such as "resize"; "default" outside any mode.
+    property string swayMode: "default"
+    I3IpcListener {
+        subscriptions: ["mode"]
+        onIpcEvent: event => {
+            if (event.type === "mode") bar.swayMode = JSON.parse(event.data).change;
+        }
+    }
 
     readonly property bool launching:
         Launcher.open && modelData !== undefined && Launcher.screen === modelData.name
@@ -72,35 +81,13 @@ PanelWindow {
         anchors.fill: parent
     }
 
-    // Take the keyboard only while the passphrase prompt or launcher is up.
-    WlrLayershell.keyboardFocus: openMenu === "pinentry" || launching
+    // Take the keyboard only while a prompt or the launcher is up.
+    WlrLayershell.keyboardFocus: openMenu === "pinentry" || typingMenu !== "" || launching
         ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     SystemClock {
         id: clock
         precision: SystemClock.Minutes
-    }
-
-    // PipeWire audio values stay at their stubs until the node is tracked.
-    PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
-    readonly property var sink: Pipewire.defaultAudioSink
-
-    readonly property var wifiDevice: {
-        const devices = Networking.devices.values;
-        return devices.find(d => d.type === DeviceType.Wifi) ?? null;
-    }
-    readonly property var wifiNetwork:
-        wifiDevice ? (wifiDevice.networks.values.find(n => n.connected) ?? null) : null
-
-    readonly property real wifiStrength: {
-        if (!wifiNetwork) return 0;
-        const raw = wifiNetwork.signalStrength;
-        return raw > 1 ? raw / 100 : raw;
-    }
-
-    readonly property var connectedBtDevice: {
-        if (!Bluetooth.defaultAdapter) return null;
-        return Bluetooth.defaultAdapter.devices.values.find(d => d.connected) ?? null;
     }
 
     property string diskFree: "--"
@@ -186,6 +173,17 @@ PanelWindow {
                 label: "passphrase"
             }
 
+            // Shown while a Sway mode like resize is on; click leaves it.
+            StatusPill {
+                visible: bar.swayMode !== "default"
+                clickable: true
+                active: true
+                onActivated: I3.dispatch("mode default")
+
+                glyph: String.fromCodePoint(0xf0a68)  // md-resize
+                label: bar.swayMode
+            }
+
             // Always-on keeps the screens awake; click toggles it like Mod+Shift+m.
             StatusPill {
                 clickable: true
@@ -202,20 +200,16 @@ PanelWindow {
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 
-                glyph: {
-                    if (!bar.wifiDevice || !Networking.wifiEnabled)
-                        return String.fromCodePoint(0xf05aa);  // md-wifi-off
-                    if (!bar.wifiNetwork)
-                        return String.fromCodePoint(0xf092b);  // md-wifi-strength-alert-outline
+                readonly property var network: Status.wifiNetwork
 
-                    if (bar.wifiStrength > 0.75) return String.fromCodePoint(0xf0928);
-                    if (bar.wifiStrength > 0.5)  return String.fromCodePoint(0xf0925);
-                    if (bar.wifiStrength > 0.25) return String.fromCodePoint(0xf0922);
-                    return String.fromCodePoint(0xf091f);      // md-wifi-strength-1..4
+                glyph: {
+                    if (!Status.wifiLive) return Status.md(0xf05aa);  // md-wifi-off
+                    if (!network) return Status.md(0xf092b);          // md-wifi-strength-alert-outline
+                    return Status.wifiGlyph(Status.strength(network));
                 }
 
-                label: bar.wifiNetwork
-                    ? bar.wifiNetwork.name + " " + Math.round(bar.wifiStrength * 100) + "%"
+                label: network
+                    ? network.name + " " + Math.round(Status.strength(network) * 100) + "%"
                     : "offline"
             }
 
@@ -224,20 +218,9 @@ PanelWindow {
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 
-                readonly property var audio: bar.sink ? bar.sink.audio : null
-
-                glyph: {
-                    if (!audio || audio.muted) return String.fromCodePoint(0xf075f);  // md-volume-mute
-                    if (audio.volume > 0.5)    return String.fromCodePoint(0xf057e);  // md-volume-high
-                    if (audio.volume > 0)      return String.fromCodePoint(0xf0580);  // md-volume-medium
-                    return String.fromCodePoint(0xf057f);                             // md-volume-low
-                }
-                label: {
-                    if (!audio) return "--";
-                    const percent = Math.round(audio.volume * 100) + "%";
-                    return audio.muted ? "(" + percent + ")" : percent;
-                }
-                alert: audio !== null && audio.muted
+                glyph: Status.volumeGlyph(Status.audio)
+                label: Status.volumeText(Status.audio)
+                alert: Status.audio !== null && Status.audio.muted
                 tint: Theme.warm
             }
 
@@ -290,18 +273,17 @@ PanelWindow {
                 onHoverChanged: hovered => bar.pillHover(menu, hovered)
                 onActivated: bar.pillActivated(menu)
 
+                readonly property var device: Status.btConnected
+
                 glyph: {
-                    if (!Bluetooth.defaultAdapter || !Bluetooth.defaultAdapter.enabled)
-                        return String.fromCodePoint(0xf00b2);  // md-bluetooth-off
-                    if (bar.connectedBtDevice)
-                        return String.fromCodePoint(0xf00b1);  // md-bluetooth-connect
-                    return String.fromCodePoint(0xf00af);      // md-bluetooth
+                    if (!Status.btLive) return Status.md(0xf00b2);  // md-bluetooth-off
+                    if (device) return Status.md(0xf00b1);          // md-bluetooth-connect
+                    return Status.md(0xf00af);                      // md-bluetooth
                 }
 
                 label: {
-                    const device = bar.connectedBtDevice;
                     if (!device) return "";
-                    const name = device.deviceName || device.name || device.address;
+                    const name = Status.deviceName(device);
                     return device.batteryAvailable
                         ? name + " " + Math.round(device.battery * 100) + "%"
                         : name;

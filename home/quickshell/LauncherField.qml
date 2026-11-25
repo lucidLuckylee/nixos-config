@@ -101,13 +101,11 @@ Item {
             width: Math.max(24, label.implicitWidth + 14)
             height: list.height
 
-            Text {
+            Label {
                 id: label
                 anchors.centerIn: parent
                 text: entry.modelData
                 color: entry.ListView.isCurrentItem ? Theme.hot : Theme.warm
-                font.family: Theme.fontFamily
-                font.pixelSize: Tokens.fontSize.small
             }
 
             TapHandler { onTapped: Launcher.run(entry.modelData) }

@@ -96,6 +96,7 @@ Item {
             if (pages[i].name === current) return pages[i];
         return null;
     }
+    readonly property string typingMenu: currentPage && currentPage.typing ? currentPage.name : ""
     readonly property int contentWidth: currentPage ? currentPage.contentWidth : 0
     readonly property int contentHeight: currentPage ? currentPage.contentHeight : 0
     readonly property int maxContentHeight: {

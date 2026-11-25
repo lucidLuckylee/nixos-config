@@ -33,11 +33,13 @@ Item {
     signal activated()
 
     implicitWidth: row.implicitWidth + Tokens.padding.medium * 2
-    implicitHeight: 22
+    implicitHeight: Tokens.size.control
     clip: true
 
-    // Smooth changing readouts without pushing neighbouring pills abruptly.
-    Behavior on implicitWidth { Anim { motion: Motion.spatial } }
+    // Smooth changing readouts without pushing neighbouring pills abruptly. No
+    // overshoot: dipping below the new width would clip the label's ends, and
+    // every pill to the left would bounce.
+    Behavior on implicitWidth { Anim { motion: Motion.standard } }
 
     Rectangle {
         anchors.fill: parent
@@ -59,23 +61,21 @@ Item {
         anchors.centerIn: parent
         spacing: Tokens.spacing.small
 
-        Text {
+        Icon {
             text: pill.glyph
             visible: text !== ""
             color: pill.active || pill.highlighted ? Theme.hot
                 : (pill.alert ? pill.tint : Theme.warm)
-            font.family: Theme.iconFont
-            font.pixelSize: Tokens.fontSize.normal
 
             Behavior on color { CAnim { motion: Motion.fastEffect } }
         }
 
-        Text {
+        Label {
             text: pill.label
             visible: text !== ""
             color: pill.active || pill.highlighted ? Theme.hot : Theme.warm
-            font.family: Theme.fontFamily
-            font.pixelSize: Tokens.fontSize.small
+
+            Behavior on color { CAnim { motion: Motion.fastEffect } }
         }
     }
 

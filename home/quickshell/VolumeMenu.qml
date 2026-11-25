@@ -9,8 +9,8 @@ MenuPage {
 
     name: "volume"
 
-    readonly property PwNode sink: Pipewire.defaultAudioSink
-    readonly property PwNodeAudio audio: sink ? sink.audio : null
+    readonly property PwNode sink: Status.sink
+    readonly property PwNodeAudio audio: Status.audio
 
     readonly property real level: audio ? audio.volume : 0
     readonly property bool muted: audio !== null && audio.muted
@@ -20,7 +20,7 @@ MenuPage {
             .filter(n => n.isSink && !n.isStream && n.audio)
             .sort((a, b) =>
                 ((b === menu.sink) - (a === menu.sink))
-                || menu.outputName(a).localeCompare(menu.outputName(b))
+                || menu.nick(a).localeCompare(menu.nick(b))
             )
             .slice(0, maxRows);
     }
@@ -33,26 +33,30 @@ MenuPage {
     }
 
     readonly property int gap: Tokens.spacing.small
-    readonly property int headerHeight: 22
-    readonly property int trackHeight: 22
-
-    readonly property int rowHeight: 26
     readonly property int maxRows: 4
 
     // Hide output selection when there is only one device.
     readonly property int rows: outputs.length > 1 ? outputs.length : 0
 
-    readonly property int naturalWidth: 320
+    contentWidth: 320
+    contentHeight: listHeight(rows)
+    maxContentHeight: listHeight(maxRows)
 
-    contentWidth: naturalWidth
-    contentHeight: headerHeight + gap + trackHeight
-        + (rows > 0 ? gap + rows * (rowHeight + gap) - gap : 0)
+    // Header and level track, then the output rows.
+    function listHeight(n) {
+        return 2 * Tokens.size.control + gap + (n > 0 ? n * (Tokens.size.row + gap) : 0);
+    }
 
-    maxContentHeight: headerHeight + gap + trackHeight
-        + gap + maxRows * (rowHeight + gap) - gap
-
-    function outputName(node) {
+    function nick(node) {
         return node.nickname || node.description || node.name;
+    }
+
+    // Outputs of one card share a nickname (UMC204HD Line A and B); spell
+    // those out by their description.
+    function outputName(node) {
+        const name = nick(node);
+        return outputs.some(o => o !== node && nick(o) === name)
+            ? node.description || name : name;
     }
 
     function outputGlyph(node) {
@@ -70,19 +74,14 @@ MenuPage {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: menu.headerHeight
+            Layout.preferredHeight: Tokens.size.control
 
-            Text {
+            Label {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
 
-                text: {
-                    if (!menu.audio) return "--";
-                    const percent = Math.round(menu.level * 100) + "%";
-                    return menu.muted ? "(" + percent + ")" : percent;
-                }
+                text: Status.volumeText(menu.audio)
                 color: Qt.alpha(Theme.background, menu.muted ? 0.6 : 1)
-                font.family: Theme.fontFamily
                 font.pixelSize: Tokens.fontSize.larger
 
                 Behavior on color { CAnim { motion: Motion.fastEffect } }
@@ -94,15 +93,7 @@ MenuPage {
                                         menu.pillRight - width - menu.pad))
                 anchors.verticalCenter: parent.verticalCenter
 
-                glyph: {
-                    if (!menu.audio || menu.muted)
-                        return String.fromCodePoint(0xf075f);  // md-volume-mute
-                    if (menu.level > 0.5)
-                        return String.fromCodePoint(0xf057e);  // md-volume-high
-                    if (menu.level > 0)
-                        return String.fromCodePoint(0xf0580);  // md-volume-medium
-                    return String.fromCodePoint(0xf057f);      // md-volume-low
-                }
+                glyph: Status.volumeGlyph(menu.audio)
                 active: menu.muted
                 available: menu.audio !== null
                 onToggled: menu.audio.muted = !menu.audio.muted
@@ -113,7 +104,7 @@ MenuPage {
             id: level
 
             Layout.fillWidth: true
-            Layout.preferredHeight: menu.trackHeight
+            Layout.preferredHeight: Tokens.size.control
 
             readonly property real fraction: Math.max(0, Math.min(1, menu.level))
 
@@ -176,60 +167,31 @@ MenuPage {
             Repeater {
                 model: menu.outputs
 
-                Item {
+                MenuRow {
                     id: row
 
                     required property var modelData
-                    readonly property bool current: modelData === menu.sink
+                    required property int index
 
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: menu.rowHeight
+                    page: menu
+                    entryIndex: index
+                    current: modelData === menu.sink
+                    clickable: !current
+                    // Persist the preferred sink across device reconnections.
+                    onClicked: Pipewire.preferredDefaultAudioSink = row.modelData
 
-                    Rectangle {
-                        anchors.fill: parent
-                        color: !row.current && hover.hovered
-                            ? Qt.alpha(Theme.background, 0.10) : "transparent"
-
+                    Icon {
+                        text: menu.outputGlyph(row.modelData)
+                        color: row.current ? Theme.primary : Qt.alpha(Theme.background, 0.75)
                         Behavior on color { CAnim { motion: Motion.fastEffect } }
                     }
 
-                    Frame {
-                        anchors.fill: parent
-                        shown: row.current
-                    }
-
-                    HoverHandler { id: hover }
-
-                    TapHandler {
-                        enabled: !row.current
-                        // Persist the preferred sink across device reconnections.
-                        onTapped: Pipewire.preferredDefaultAudioSink = row.modelData
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Tokens.spacing.medium
-                        anchors.rightMargin: Tokens.spacing.medium
-                        spacing: Tokens.spacing.small
-
-                        Text {
-                            text: menu.outputGlyph(row.modelData)
-                            color: row.current ? Theme.primary : Qt.alpha(Theme.background, 0.75)
-                            font.family: Theme.iconFont
-                            font.pixelSize: Tokens.fontSize.normal
-
-                            Behavior on color { CAnim { motion: Motion.fastEffect } }
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            Layout.leftMargin: Tokens.spacing.extraSmall
-                            text: menu.outputName(row.modelData)
-                            elide: Text.ElideMiddle
-                            color: row.current ? Theme.primary : Theme.background
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Tokens.fontSize.small
-                        }
+                    Label {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Tokens.spacing.extraSmall
+                        text: menu.outputName(row.modelData)
+                        elide: Text.ElideMiddle
+                        color: row.current ? Theme.primary : Theme.background
                     }
                 }
             }

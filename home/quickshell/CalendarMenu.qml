@@ -67,7 +67,7 @@ MenuPage {
     readonly property int cellWidth: 34
     readonly property int cellHeight: 24
 
-    readonly property int headerHeight: 22   // a Chip's own height
+    readonly property int headerHeight: Tokens.size.control
     readonly property int weekdayHeight: 18
     readonly property int gap: Tokens.spacing.small
 
@@ -110,11 +110,9 @@ MenuPage {
                 Layout.preferredHeight: menu.headerHeight
                 spacing: Tokens.spacing.extraSmall
 
-                Text {
+                Label {
                     Layout.fillWidth: true
                     text: menu.monthNames[menu.viewMonth] + " " + menu.viewYear
-                    color: Theme.background
-                    font.family: Theme.fontFamily
                     font.pixelSize: Tokens.fontSize.normal
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
@@ -145,7 +143,7 @@ MenuPage {
                 Repeater {
                     model: menu.weekdayNames
 
-                    Text {
+                    Label {
                         required property string modelData
 
                         width: menu.cellWidth
@@ -154,8 +152,6 @@ MenuPage {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         color: Qt.alpha(Theme.background, 0.6)
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Tokens.fontSize.small
                     }
                 }
             }
@@ -198,20 +194,20 @@ MenuPage {
                             Behavior on color { CAnim { motion: Motion.fastEffect } }
                         }
 
+                        // The frame's glow takes four pixels a side, so it fills
+                        // the whole cell to leave the date the same room as a
+                        // selected day's box.
                         Frame {
                             anchors.fill: parent
-                            anchors.margins: Tokens.spacing.extraSmall
                             shown: cell.isToday
                         }
 
-                        Text {
+                        Label {
                             anchors.centerIn: parent
                             text: cell.day.getDate()
                             color: cell.isToday ? Theme.primary
                                  : cell.inMonth ? Theme.background
                                  : Qt.alpha(Theme.background, 0.35)
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Tokens.fontSize.small
 
                             Behavior on color { CAnim { motion: Motion.fastEffect } }
                         }
@@ -248,14 +244,12 @@ MenuPage {
                 Layout.preferredHeight: menu.headerHeight
                 spacing: Tokens.spacing.small
 
-                Text {
+                Label {
                     Layout.fillWidth: true
                     text: menu.weekdayNames[(menu.selected.getDay() + 6) % 7] + " "
                         + Qt.formatDate(menu.selected, "dd.MM.")
                         + (menu.dayEvents.length > 0
                             ? "  ·  " + menu.dayEvents.length : "")
-                    color: Theme.background
-                    font.family: Theme.fontFamily
                     font.pixelSize: Tokens.fontSize.normal
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
@@ -324,18 +318,14 @@ MenuPage {
                                 Layout.preferredWidth: 40
                                 spacing: 0
 
-                                Text {
+                                Label {
                                     text: row.modelData.allDay ? "all day" : menu.timeOf(row.modelData.start)
                                     color: Qt.alpha(Theme.background, row.past ? 0.5 : 1)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Tokens.fontSize.small
                                 }
-                                Text {
+                                Label {
                                     visible: !row.modelData.allDay
                                     text: menu.timeOf(row.modelData.end)
                                     color: Qt.alpha(Theme.background, 0.5)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Tokens.fontSize.small
                                 }
                             }
 
@@ -343,22 +333,18 @@ MenuPage {
                                 Layout.fillWidth: true
                                 spacing: 0
 
-                                Text {
+                                Label {
                                     Layout.fillWidth: true
                                     text: row.modelData.summary
                                     elide: Text.ElideRight
                                     color: Qt.alpha(Theme.background, row.past ? 0.5 : 1)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Tokens.fontSize.small
                                 }
-                                Text {
+                                Label {
                                     Layout.fillWidth: true
                                     visible: text !== ""
                                     text: row.modelData.location
                                     elide: Text.ElideRight
                                     color: Qt.alpha(Theme.background, 0.5)
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Tokens.fontSize.small
                                 }
                             }
 
@@ -374,26 +360,22 @@ MenuPage {
                     }
                 }
 
-                Text {
+                Label {
                     Layout.fillWidth: true
                     Layout.preferredHeight: menu.rowHeight
                     verticalAlignment: Text.AlignVCenter
                     leftPadding: Tokens.spacing.small
                     visible: menu.dayEvents.length === 0
                     color: Qt.alpha(Theme.background, 0.7)
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Tokens.fontSize.small
                     text: Agenda.failed && Agenda.events.length === 0
                         ? "sync failed" : "no events"
                 }
 
-                Text {
+                Label {
                     Layout.fillWidth: true
                     visible: menu.hiddenEvents > 0
                     leftPadding: Tokens.spacing.small
                     color: Qt.alpha(Theme.background, 0.6)
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Tokens.fontSize.small
                     text: "+" + menu.hiddenEvents + " more"
                 }
 

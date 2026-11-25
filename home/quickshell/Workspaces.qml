@@ -80,12 +80,10 @@ Item {
                     visible: chip.modelData.urgent && !chip.modelData.focused
                 }
 
-                Text {
+                Icon {
                     id: text
                     anchors.centerIn: parent
                     text: chip.modelData.name
-                    font.family: Theme.iconFont
-                    font.pixelSize: 13
                     color: chip.modelData.focused ? Theme.hot
                         : (chip.modelData.urgent ? Theme.background : Theme.warm)
                     opacity: chip.modelData.focused || chip.modelData.active ? 1 : 0.75

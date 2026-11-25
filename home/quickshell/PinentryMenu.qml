@@ -9,8 +9,6 @@ MenuPage {
     name: "pinentry"
 
     readonly property int gap: Tokens.spacing.small
-    readonly property int headerHeight: 22
-    readonly property int fieldHeight: 30
 
     contentWidth: 360
     contentHeight: column.implicitHeight
@@ -29,14 +27,12 @@ MenuPage {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: menu.headerHeight
+            Layout.preferredHeight: Tokens.size.control
 
-            Text {
+            Label {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: Pinentry.title || "gpg-agent"
-                color: Theme.background
-                font.family: Theme.fontFamily
                 font.pixelSize: Tokens.fontSize.larger
             }
 
@@ -49,39 +45,32 @@ MenuPage {
             }
         }
 
-        Text {
+        Label {
             Layout.fillWidth: true
             visible: text !== ""
             text: Pinentry.description
             wrapMode: Text.Wrap
-            color: Theme.background
-            font.family: Theme.fontFamily
-            font.pixelSize: Tokens.fontSize.small
         }
 
-        Text {
+        Label {
             Layout.fillWidth: true
             visible: text !== ""
             text: Pinentry.error
             wrapMode: Text.Wrap
             color: Theme.hot
-            font.family: Theme.fontFamily
-            font.pixelSize: Tokens.fontSize.small
         }
 
         Frame {
             Layout.fillWidth: true
-            Layout.preferredHeight: menu.fieldHeight
+            Layout.preferredHeight: Tokens.size.row
 
-            Text {
+            Icon {
                 id: label
                 anchors.left: parent.left
                 anchors.leftMargin: Tokens.spacing.medium
                 anchors.verticalCenter: parent.verticalCenter
                 text: String.fromCodePoint(0xf033e)  // md-lock
                 color: Theme.primary
-                font.family: Theme.iconFont
-                font.pixelSize: Tokens.fontSize.normal
             }
 
             TextInput {

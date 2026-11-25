@@ -12,8 +12,8 @@ Item {
 
     signal toggled()
 
-    implicitWidth: 26
-    implicitHeight: 22
+    implicitWidth: Tokens.size.chip
+    implicitHeight: Tokens.size.control
 
     opacity: available ? 1 : 0.35
     Behavior on opacity { Anim { motion: Motion.fastEffect } }
@@ -37,22 +37,16 @@ Item {
         shown: chip.active
     }
 
-    Text {
-        id: text
+    Icon {
         anchors.centerIn: parent
         text: chip.glyph
         color: chip.active ? Theme.primary : Qt.alpha(Theme.background, 0.8)
-        font.family: Theme.iconFont
-        font.pixelSize: Tokens.fontSize.normal
 
         Behavior on color { CAnim { motion: Motion.fastEffect } }
-
-        SequentialAnimation on opacity {
+        Pulse on opacity {
             running: chip.working
-            loops: Animation.Infinite
-            onStopped: text.opacity = 1
-            NumberAnimation { from: 1; to: 0.35; duration: 900; easing.type: Easing.InOutSine }
-            NumberAnimation { from: 0.35; to: 1; duration: 900; easing.type: Easing.InOutSine }
+            period: 1800
+            low: 0.35
         }
     }
 

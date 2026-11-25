@@ -36,6 +36,13 @@ Singleton {
         readonly property int extraLarge: 28
     }
 
+    // A Chip is chip × control; bar pills share its height. Menu list rows are `row` tall.
+    readonly property QtObject size: QtObject {
+        readonly property int control: 22
+        readonly property int chip: 26
+        readonly property int row: 30
+    }
+
     readonly property QtObject fontSize: QtObject {
         readonly property int small: 11
         readonly property int smaller: 12
