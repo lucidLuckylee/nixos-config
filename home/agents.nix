@@ -1,5 +1,5 @@
-# How the coding agents behave: Claude Code's settings, global memory
-# and output style. MCP servers for both tools live in mcp.nix.
+# How Claude Code behaves: settings, global memory and output style.
+# MCP servers live in mcp.nix.
 { pkgs, lib, config, ... }:
 let
   plansRepo = "git@github.com:lucidLuckylee/plans.git";
@@ -8,9 +8,8 @@ let
 
   # ── Claude Code global settings (merged into ~/.claude/settings.json) ──
   claudeSettings = {
-    model = "sonnet";
-    env.CLAUDE_CODE_SUBAGENT_MODEL = "haiku";
-    outputStyle = "Terse";
+    model = "opus";
+    outputStyle = "Concise";
 
     permissions = {
       allow = [
@@ -53,10 +52,8 @@ in {
     enable = true;
     package = null; # shared.nix installs claude-code itself
     context = builtins.readFile ./agents/claude/CLAUDE.md + knowledgeBase;
-    outputStyles.terse = ./agents/claude/terse.md;
+    outputStyles.concise = ./agents/claude/concise.md;
   };
-
-  programs.codex.context = knowledgeBase;
 
   # Merge managed Claude settings recursively, preserving other preferences.
   home.activation.setupClaudeSettings =
@@ -70,7 +67,7 @@ in {
       if [ -f "$CLAUDE_SETTINGS" ]; then
         # Recursive merge with the managed side winning, so a nested key Nix
         # does not name (an imperatively granted permission, say) survives.
-        ${pkgs.jq}/bin/jq -s '.[0] * .[1]' \
+        ${pkgs.jq}/bin/jq -s '(.[0] | del(.env.CLAUDE_CODE_SUBAGENT_MODEL)) * .[1]' \
           "$CLAUDE_SETTINGS" ${claudeManagedSettings} \
           > "$CLAUDE_SETTINGS.tmp" \
           && mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"

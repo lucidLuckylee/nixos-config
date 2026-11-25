@@ -1,6 +1,5 @@
-# Shared MCP server definitions for Claude and Codex. Activation merges them
-# into writable files so application state and trust entries survive; the
-# agents' own settings live in agents.nix.
+# MCP server definitions for Claude. Activation merges them into a writable
+# file so application state survives; Claude's own settings live in agents.nix.
 { pkgs, lib, config, ... }:
 let
   npx = "${pkgs.nodejs}/bin/npx";
@@ -117,42 +116,6 @@ let
       exec python3 ${./mac-browser.py}
     '';
   };
-
-  # Reuse the server definitions for Codex.
-  tomlFormat = pkgs.formats.toml { };
-  codexManagedConfig = tomlFormat.generate "codex-managed-config.toml" {
-    # Allow optional servers time to finish startup.
-    mcp_optional_startup_grace_ms = 10000;
-    # Allow npm downloads and compilation before the MCP initialize response.
-    mcp_servers =
-      lib.mapAttrs (_: s: s // { startup_timeout_sec = 60; }) mcpServers;
-  };
-
-  # Python because it is the one thing at hand that can round-trip TOML:
-  # tomllib reads it (stdlib), tomli-w writes it back.
-  codexMergePython = pkgs.python3.withPackages (ps: [ ps.tomli-w ]);
-  codexMergeScript = pkgs.writeText "codex-config-merge.py" ''
-    import os, sys, tomllib
-    import tomli_w
-
-    managed_path, cfg_path = sys.argv[1], sys.argv[2]
-    with open(managed_path, "rb") as f:
-        managed = tomllib.load(f)
-    existing = {}
-    if os.path.exists(cfg_path):
-        with open(cfg_path, "rb") as f:
-            existing = tomllib.load(f)
-
-    # Managed keys win at the top level (mcp_servers is wholly Nix's, the
-    # same deal as Claude's .mcpServers), everything else Codex or the user
-    # wrote is kept as-is.
-    merged = {**existing, **managed}
-
-    tmp = cfg_path + ".tmp"
-    with open(tmp, "wb") as f:
-        tomli_w.dump(merged, f)
-    os.replace(tmp, cfg_path)
-  '';
 in {
   home.packages = [
     pkgs.nodejs
@@ -168,19 +131,6 @@ in {
       args = [];
     };
   };
-
-  # Keep config.toml writable; Codex stores project trust alongside MCP settings.
-  programs.codex.enable = true;
-
-  home.activation.setupCodexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    CODEX_CONFIG="$HOME/.codex/config.toml"
-    mkdir -p "$HOME/.codex"
-    # A previous generation managed this as a store symlink; a symlink would
-    # also make the tmp-file rename in the merge script land in the store.
-    [ -L "$CODEX_CONFIG" ] && rm "$CODEX_CONFIG"
-    ${codexMergePython}/bin/python3 ${codexMergeScript} \
-      ${codexManagedConfig} "$CODEX_CONFIG"
-  '';
 
   # MCP servers — merged into ~/.claude.json (preserves dynamic state)
   home.activation.setupClaudeMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

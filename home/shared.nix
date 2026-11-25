@@ -112,6 +112,7 @@ in {
     ffmpeg
     claude-code
     rustToolchain
+    cargo-nextest
     llvmPackages.libclang
     nerd-fonts.dejavu-sans-mono
     # Patched browsers for Playwright; also kept here as a gcroot so
@@ -405,6 +406,19 @@ in {
       gtk-custom-css = "${ghosttyCss}";
     };
   };
+
+  # One shared target dir so git worktrees reuse compiled dependencies, and
+  # lighter dev debug info to cut build time and disk use.
+  home.file.".cargo/config.toml".text = ''
+    [build]
+    target-dir = "${config.home.homeDirectory}/.cache/cargo-target"
+
+    [profile.dev]
+    debug = "line-tables-only"
+
+    [profile.dev.package."*"]
+    debug = false
+  '';
 
   # Prefer the Mac's LAN address at home/on the VPN; otherwise use its
   # public port forward. Both routes verify the same pinned Mac host key.

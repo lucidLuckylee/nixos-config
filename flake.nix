@@ -31,7 +31,7 @@
               inherit (prev.stdenv.hostPlatform) system;
               config.allowUnfree = true;
             };
-        in { inherit (fresh) codex claude-code; };
+        in { inherit (fresh) claude-code; };
 
       sharedModule = {
         _module.args = { inherit nvim; };
