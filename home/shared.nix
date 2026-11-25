@@ -407,11 +407,12 @@ in {
     };
   };
 
-  # One shared target dir so git worktrees reuse compiled dependencies, and
-  # lighter dev debug info to cut build time and disk use.
+  # One shared build dir so git worktrees reuse compiled dependencies while
+  # final binaries stay in each worktree's ./target, and lighter dev debug
+  # info to cut build time and disk use.
   home.file.".cargo/config.toml".text = ''
     [build]
-    target-dir = "${config.home.homeDirectory}/.cache/cargo-target"
+    build-dir = "${config.home.homeDirectory}/.cache/cargo-build"
 
     [profile.dev]
     debug = "line-tables-only"

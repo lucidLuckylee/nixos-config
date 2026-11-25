@@ -16,7 +16,7 @@
 - While iterating, scope commands to the crate you changed (`cargo check -p <crate>`, `cargo nextest run -p <crate>`).
 - Prefer `cargo check` or `cargo clippy` over building test binaries you do not need to run.
 - Run the full workspace checks once, at the end.
-- All worktrees share one target dir, `~/.cache/cargo-target`: find binaries there, not in `./target`.
+- All worktrees share one build dir, `~/.cache/cargo-build`, for intermediate artifacts; final binaries stay in each worktree's `./target`.
 - When cargo prints "Blocking waiting for file lock", another worktree is building: wait for it.
 - Free disk with `cargo clean -p <crate>`; run a full `cargo clean` only when asked.
 - Run tests with `cargo nextest run` where available; it skips doctests, so use `cargo test --doc` for those.
